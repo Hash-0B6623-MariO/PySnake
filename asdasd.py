@@ -1,0 +1,1 @@
+print(*(a*3 for a in (1, 2)))
