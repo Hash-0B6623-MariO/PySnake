@@ -3,13 +3,23 @@ import pygame
 from itertools import cycle 
 
 # 12/08/25 - Take two, now implements basic tile logic and state storage
+# Stuff to add:
+# - Json config reading/writing for game settings and board layouts
+# - Handling palettes and sprites
+
 
 class Tile:
     # Each id corresponds to a unique tile type, the rest of the code refers to types as ids
-    tile_types = {}
+    # This is hardcoded. Reference for checking
+    tile_types = {
+        0:None,  # Empty tile
+        1:None,  # Player tile
+        2:None,  # Obstacle tile
+        3:None  # Collectible tile
+        }
 
-    def __init__(self, position=(0,0), file_dir=None):
-        self.id = len(Tile.tile_types) + 1
+    def __init__(self, position=(0,0), id=None, file_dir=None):
+        self.id = len(Tile.tile_types) + 1 if id is None else id
         Tile.tile_types[self.id] = self
 
         self.sprite = self.replace_sprite(file_dir) if file_dir else None
@@ -39,28 +49,6 @@ class Tile:
     # Tile Data Functions ==============================================================================================================
     def move_tile(self, new_position:tuple):
         self.position = new_position
-
-
-# Game Logic built here ==============================================================================================================
-# Includes rules, win conditions, collisions and controls
-# Notes: 
-#   Do player controls in one unified function
-#   Use the coordinate system of the board for movement and collision detection
-class BoardRules():
-    def __init__(self):
-        self.key_mapping = {
-            pygame.K_w: self.move_UP,
-            pygame.K_s: self.move_DOWN,
-            pygame.K_a: self.move_LEFT,
-            pygame.K_d: self.move_RIGHT
-        }
-
-    # Skeleton implementation of movement functions
-    def move_character(self, character:Tile, direction:tuple):
-        new_x = character.position[0] + direction[0]
-        new_y = character.position[1] + direction[1]
-        character.move_tile((new_x, new_y))
-
 
 class GameBoard(pygame.Surface):
     def __init__(self, dimensions:list, tile_unit:int):
@@ -138,39 +126,142 @@ class GameBoard(pygame.Surface):
     def run_game(self):
         pass
 
+# Game Logic built here ==============================================================================================================
+# Includes rules, win conditions, collisions and controls
+# Notes: 
+#   Attribute syntax in SnakeGame, this just isolates the logic from the rest of the code 
+#   Do player controls in one unified function
+#   Use the coordinate system of the board for movement and collision detection
+class BoardRules():
+    def __init__(self, board):
+        self.board = board
+        
 
-pygame.init()
-window = pygame.display.set_mode((500, 500))
-# palette=((255, 0, 0), (0, 0, 255))
-board = GameBoard([20, 20], 20)
-board.set_palette(((200, 200, 200), (100, 100, 100)))
+        self.key_mapping = {
+            pygame.K_w: self.move_character(0, -1),
+            pygame.K_s: self.move_character(-1, 0),
+            pygame.K_a: self.move_character(0, 1),
+            pygame.K_d: self.move_character(1, 0)
+        }
+        
+        
+        # Here for sad
+            # for key, value in attributes.items():
+            #     setattr(self, key, value)
+    
+    def key_event(self):
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                if event.key in self.board.snake.key_map:
+                    self.key_mapping[event.key](self.board.snake)
 
-window.fill((40, 40, 40))
+
+
+    # Handling tile data functions ==============================================================================================================
+    def center_character(self):
+        pass
+
+    def move_character(self, direction:tuple):
+        new_x = self.character.position[0] + direction[0]
+        new_y = self.character.position[1] + direction[1]
+        self.character.move_tile((new_x, new_y))
+
+
+
+    # Logic functions ==============================================================================================================
+    def check_collisions(self, character:Tile, board:GameBoard):
+        pass
+    
+    # Conditional outcomes
+    def collide_fruit(self, character:Tile, fruit_coords:tuple):
+        pass
+
+
+
+
+
+class SnakeGame:
+    def __init__(self):
+        # Static configurations
+        self.config = {
+            "window_scale": 0.4,
+            "window_background": (0, 0, 0),
+        }
+
+        # Dynamic attributes, does not change during runtime though
+        self.attributes = {
+            "board_dimensions": [20, 20],
+            "board_unit": 20,
+            "board_palette": ((200, 200, 200), (100, 100, 100))
+        }
+
+        self.set_config()
+
+        # palette=((255, 0, 0), (0, 0, 255))
+
+    # Utility functions/properties
+    def read_config(self):
+        pass
+
+    def set_config(self):
+        pygame.init()
+        c = self.config
+        self.window = pygame.display.set_mode(self.update_window(c["window_scale"]))
+        self.window.fill(c["window_background"])
+
+    def initialize_objects(self):
+        a = self.attributes
+        self.board = GameBoard(a["board_dimensions"], c["board_unit"])
+        self.board.set_palette(a["board_palette"])
+
+        self.character = Tile(position=(10,10), id=1)  # Player tile
+
+        
+
+    def initialize_logic(self):
+        # Abreviated for convenience
+        self.r = BoardRules(self.board)
+
+    def update_window(self, scale=0.4):
+        # Assumes single monitor setup for now
+        return tuple(x*scale for x in pygame.display.get_desktop_sizes()[0])
+
+    @property   # Centers the board
+    def __center(self):
+        self.__center = ((self.window.get_width() - self.board.get_width()) // 2, (self.window.get_height() - self.board.get_height()) // 2)
+
+    def get_center(self):
+        return self.__center
+
+    # Skeleton implementation of movement functions
+
+    def run(self):
+        loop = cycle((i for i in range(0,20)))
+        char = Tile((5, next(loop)))
+        self.board.add_tile(char)
+        
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    exit()
+            self.board.draw_board(self.window, self.get_center())
+            
+
+            # holy hack batman
+            # fix, too laggy have board updates automatically handle tile updates
+            char.move_tile((5, next(loop)))
+            # board.update_tile(char.id, char)
+
+
+            pygame.time.Clock().tick(12)
+
+            
+            pygame.display.flip()
+
+
+
 # board.draw_bg(colors)
 # board.draw_board(window, ((window.get_width() - board.get_width()) // 2, (window.get_height() - board.get_height()) // 2))
 # pygame.display.flip()
 
-
-
-loop = cycle((i for i in range(0,20)))
-
-char = Tile((5, next(loop)))
-board.add_tile(char)
-
-while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            exit()
-    board.draw_board(window, ((window.get_width() - board.get_width()) // 2, (window.get_height() - board.get_height()) // 2))
-    
-
-    # holy hack batman
-    # fix, too laggy have board updates automatically handle tile updates
-    char.move_tile((5, next(loop)))
-    # board.update_tile(char.id, char)
-
-
-    pygame.time.Clock().tick(12)
-
-    
-    pygame.display.flip()
+SnakeGame().run()
