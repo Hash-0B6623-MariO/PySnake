@@ -211,7 +211,7 @@ class SnakeGame:
 
     def initialize_objects(self):
         a = self.attributes
-        self.board = GameBoard(a["board_dimensions"], c["board_unit"])
+        self.board = GameBoard(a["board_dimensions"], a["board_unit"])
         self.board.set_palette(a["board_palette"])
 
         self.character = Tile(position=(10,10), id=1)  # Player tile
