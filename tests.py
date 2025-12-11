@@ -13,6 +13,7 @@ from itertools import cycle
 class Tile:
     # Each id corresponds to a unique tile type, the rest of the code refers to types as ids
     # This is hardcoded. Reference for checking
+# This now acts as the sort of constructors for tile objects
     tile_types = {
         0:None,  # Empty tile
         1:None,  # Player tile
@@ -52,6 +53,17 @@ class Tile:
     # Tile Data Functions ==============================================================================================================
     def move_tile(self, new_position:tuple):
         self.position = new_position
+
+    def __eq__(self, other):
+        return self.id == other.id
+
+
+
+
+
+
+
+
 
 class GameBoard(pygame.Surface):
     def __init__(self, dimensions:list, tile_unit:int):
