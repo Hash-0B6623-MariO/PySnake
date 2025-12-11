@@ -59,6 +59,13 @@ class Tile:
 
 
 
+class Entity(Tile):
+    def __init__(self, position=(0,0), id=None, file_dir=None):
+super.__init__()
+
+
+
+class Collectible(Tile):
 
 
 
