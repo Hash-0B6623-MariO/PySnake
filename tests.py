@@ -8,6 +8,8 @@ from itertools import cycle
 # - Handling palettes and sprites
 
 
+# Prio: Final struct for tile class
+
 class Tile:
     # Each id corresponds to a unique tile type, the rest of the code refers to types as ids
     # This is hardcoded. Reference for checking
@@ -25,8 +27,9 @@ class Tile:
         self.sprite = self.replace_sprite(file_dir) if file_dir else None
         self.position = position
 
-        # This
-        self.state = None
+        # 2 Main rules, is it collision sensitive or a collectible? 0 means neither
+# Scale the game from here on further development
+        self.type = None
         self.logic = None
         # Or
         self.tile_properties = {}   # Id, tile object
@@ -164,6 +167,7 @@ class BoardRules():
     def move_character(self, direction:tuple):
         new_x = self.character.position[0] + direction[0]
         new_y = self.character.position[1] + direction[1]
+self.check_tile((new_x, new_y))
         self.character.move_tile((new_x, new_y))
 
 
@@ -171,8 +175,13 @@ class BoardRules():
     # Logic functions ==============================================================================================================
     def check_collisions(self, character:Tile, board:GameBoard):
         pass
-    
-    # Conditional outcomes
+  
+def check_tile(self, coords:tuple):
+  tile_front = self.board.search_board(coords)
+
+
+
+    # Outcomes,results for conditional statements
     def collide_fruit(self, character:Tile, fruit_coords:tuple):
         pass
 
