@@ -14,6 +14,7 @@ class Tile:
     # Each id corresponds to a unique tile type, the rest of the code refers to types as ids
     # This is hardcoded. Reference for checking
 # This now acts as the sort of constructors for tile objects
+# Currently not really needed, but could be useful for building more complex tiles later
     tile_types = {
         0:None,  # Empty tile
         1:None,  # Player tile
@@ -29,11 +30,9 @@ class Tile:
         self.position = position
 
         # 2 Main rules, is it collision sensitive or a collectible? 0 means neither
-# Scale the game from here on further development
-        self.type = None
-        self.logic = None
-        # Or
-        self.tile_properties = {}   # Id, tile object
+        # Scale the game from here on further development
+        # self.type = None
+        # self.logic = None
 
 
     def replace_sprite(self, file_dir):
@@ -51,25 +50,50 @@ class Tile:
             pygame.draw.rect(surface, (0, 255, 0), (position, (scale, scale))) # Placeholder
 
     # Tile Data Functions ==============================================================================================================
-    def move_tile(self, new_position:tuple):
+    def move(self, new_position:tuple):
         self.position = new_position
 
     def __eq__(self, other):
         return self.id == other.id
 
 
-
+# Maybe tweak this so it uses composition
 class Entity(Tile):
-    def __init__(self, position=(0,0), id=None, file_dir=None):
-super.__init__()
+    def char_stats(self):
+        pass
 
 
 
 class Collectible(Tile):
+    def set_properties(self):
+        pass
+
+# Proto class for building tiles
+class EntityBuilder():
+    class Char(Tile):
+        def __init__(self, position=(0, 0), id=None, file_dir=None):
+            super().__init__(position, id, file_dir)
+            self.length = 1
+            self.group = []
+            self.state = 0 # 0 is tail, 1 is head
+            self.direction = (0, 1) # Default moving right
+        
+        def grow(self):
+            self.length += 1
+        
+        def move(self):
+            new_position = [x1 + x2 for x1, x2 in (self.position, self.direction)]
 
 
+            super().move(new_position)
+            # Move the body segments
+            if self.length > 1:
+                self.group.insert(0, self.position)
+                if len(self.group) > self.length - 1:
+                    self.group.pop()
 
-
+    
+ 
 
 
 class GameBoard(pygame.Surface):
@@ -180,14 +204,21 @@ class BoardRules():
 
 
     # Handling tile data functions ==============================================================================================================
+    def find_character(self):
+        char = self.board.get_tiles(1)
+        return char[0] if char else None
+
+    
     def center_character(self):
         pass
+
+    
 
     def move_character(self, direction:tuple):
         new_x = self.character.position[0] + direction[0]
         new_y = self.character.position[1] + direction[1]
-self.check_tile((new_x, new_y))
-        self.character.move_tile((new_x, new_y))
+        self.check_tile((new_x, new_y))
+        self.character.move((new_x, new_y))
 
 
 
@@ -195,8 +226,8 @@ self.check_tile((new_x, new_y))
     def check_collisions(self, character:Tile, board:GameBoard):
         pass
   
-def check_tile(self, coords:tuple):
-  tile_front = self.board.search_board(coords)
+    def check_tile(self, coords:tuple):
+        tile_front = self.board.search_board(coords)
 
 
 
@@ -277,7 +308,7 @@ class SnakeGame:
 
             # holy hack batman
             # fix, too laggy have board updates automatically handle tile updates
-            char.move_tile((5, next(loop)))
+            char.move((5, next(loop)))
             # board.update_tile(char.id, char)
 
 
