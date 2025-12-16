@@ -318,7 +318,7 @@ class SnakeGame:
             pygame.display.flip()
 
 
-
+# HELLO?!??!
 # board.draw_bg(colors)
 # board.draw_board(window, ((window.get_width() - board.get_width()) // 2, (window.get_height() - board.get_height()) // 2))
 # pygame.display.flip()
