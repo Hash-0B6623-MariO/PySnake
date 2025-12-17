@@ -8,7 +8,7 @@ from itertools import cycle
 # - Handling palettes and sprites
 
 
-# Prio: Final struct for tile class
+# Prio: Final struct for tile and board class
 
 class Tile:
     # Each id corresponds to a unique tile type, the rest of the code refers to types as ids
@@ -16,10 +16,11 @@ class Tile:
 # This now acts as the sort of constructors for tile objects
 # Currently not really needed, but could be useful for building more complex tiles later
     tile_types = {
-        0:None,  # Empty tile
-        1:None,  # Player tile
-        2:None,  # Obstacle tile
-        3:None  # Collectible tile
+        # 0:0,  # Empty tile
+        # 1:0,  # Player tile (tail)
+        # 9:0,  # Player tile (head)    
+        # 2:0,  # Obstacle tile
+        # 3:0  # Collectible tile
         }
 
     def __init__(self, position=(0,0), id=None, file_dir=None):
@@ -42,8 +43,7 @@ class Tile:
         except Exception as e:
             print(f"Error loading sprite: {e}")
 
-    def draw(self, surface:pygame.Surface, position:tuple,scale=1):
-        print(position)
+    def draw(self, surface:pygame.Surface, position:tuple, scale=1):
         if self.sprite:
             surface.blit(self.sprite.scale_by(scale), position)
         else:
@@ -69,28 +69,28 @@ class Collectible(Tile):
         pass
 
 # Proto class for building tiles
-class EntityBuilder():
+class EntityBuilder:
     class Char(Tile):
-        def __init__(self, position=(0, 0), id=None, file_dir=None):
+        def __init__(self, position=(0, 0), file_dir=None, Head=False):
+            # Could be a problem for the board class
+            id = 9 if Head else 1
             super().__init__(position, id, file_dir)
-            self.length = 1
-            self.group = []
-            self.state = 0 # 0 is tail, 1 is head
+            self.trailing = None # Sort of a node structure for body segments
             self.direction = (0, 1) # Default moving right
         
-        def grow(self):
-            self.length += 1
+        def grow(self, position:tuple, Char):
+            self.trailing = Char
         
-        def move(self):
-            new_position = [x1 + x2 for x1, x2 in (self.position, self.direction)]
-
-
+        def move(self, new_position=None):
+            new_position = tuple(x1 + x2 for x1, x2 in (self.position, self.direction))
+            if self.trailing:
+                self.trailing.move()
             super().move(new_position)
-            # Move the body segments
-            if self.length > 1:
-                self.group.insert(0, self.position)
-                if len(self.group) > self.length - 1:
-                    self.group.pop()
+
+        def draw(self, surface:pygame.Surface, position:tuple, scale=1):
+            if self.trailing:
+                self.trailing.draw(surface, position, scale)
+            super().draw(surface, position, scale)
 
     
  
@@ -104,13 +104,13 @@ class GameBoard(pygame.Surface):
         self.tile_group = {}    # Tracks all active tiles on the board. Struct is {position: tile id}
 
         # Store tile palettes here
-        self.__palette =((0,0,0), (255,255,255)) # TODO: Change to a dictionary
+        self.__color =((0,0,0), (255,255,255)) # TODO: Change to a dictionary
 
-    def get_palette(self):
-            return self.__palette
+    def get_color(self):
+            return self.__color
 
-    def set_palette(self, value:tuple):
-            self.__palette = value
+    def set_color(self, value:tuple):
+            self.__color = value
 
     # Drawing Functions ==============================================================================================================
     # Look up overloaded methods for python
@@ -130,7 +130,7 @@ class GameBoard(pygame.Surface):
 
     def draw_board(self, window, position:tuple):
         window.fill((0, 0, 0))
-        self.draw_bg(self.get_palette())
+        self.draw_bg(self.get_color())
         self.draw_tiles()
         window.blit(self, position)
 
@@ -147,7 +147,7 @@ class GameBoard(pygame.Surface):
         
     # Searches for all tiles of a certain type on the board
     def get_tiles(self, id):
-        return [key for key, value in self.tile_group.items() if value == id]
+        return [key for key, value in self.tile_group.items() if int(value) == id]
 
     # Currently implemented to function for unique and non-unique tiles
     def update_tile(self, id, args:dict, tile=None):
@@ -181,13 +181,13 @@ class GameBoard(pygame.Surface):
 class BoardRules():
     def __init__(self, board):
         self.board = board
-        
+        self.character = self.find_character()
 
         self.key_mapping = {
-            pygame.K_w: self.move_character(0, -1),
-            pygame.K_s: self.move_character(-1, 0),
-            pygame.K_a: self.move_character(0, 1),
-            pygame.K_d: self.move_character(1, 0)
+            pygame.K_w: self.move_character((0, -1)),
+            pygame.K_s: self.move_character((-1, 0)),
+            pygame.K_a: self.move_character((0, 1)),
+            pygame.K_d: self.move_character((1, 0))
         }
         
         
@@ -205,7 +205,7 @@ class BoardRules():
 
     # Handling tile data functions ==============================================================================================================
     def find_character(self):
-        char = self.board.get_tiles(1)
+        char = self.board.get_tiles(9)
         return char[0] if char else None
 
     
@@ -255,6 +255,8 @@ class SnakeGame:
         }
 
         self.set_config()
+        self.initialize_objects()
+        self.initialize_logic()
 
         # palette=((255, 0, 0), (0, 0, 255))
 
@@ -271,9 +273,11 @@ class SnakeGame:
     def initialize_objects(self):
         a = self.attributes
         self.board = GameBoard(a["board_dimensions"], a["board_unit"])
-        self.board.set_palette(a["board_palette"])
+        self.board.set_color(a["board_palette"])
 
-        self.character = Tile(position=(10,10), id=1)  # Player tile
+        self.character = EntityBuilder.Char(position=(10,10), Head=True)  # Player tile
+        self.board.add_tile(self.character)
+        print(self.board.get_tiles(9))
 
         
 
