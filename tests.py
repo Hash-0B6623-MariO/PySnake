@@ -49,6 +49,8 @@ class Tile:
 
     # Helper function for drawing
     def scale_to_board(self, tile_unit):
+        print(self.position)
+        print(self.personality)
         return tuple(pos * tile_unit for pos in self.position)
 
     def draw(self, surface:pygame.Surface, scale=1):
@@ -114,6 +116,7 @@ class Entity:
 
         def change_direction(self, direction):
             self.direction = direction
+            
         
         # Two solutions 
         #   (Bad=recursive call till the last tail is found to be given the back obj)
@@ -131,10 +134,9 @@ class Entity:
             tail_curr.back = tail_new
             tail_new.front = tail_curr
         
+        # TODO: NEW_POS here to deal with the calls from boardrules
         def move(self, new_position=None):
-            # TODO: This one
-            if new_position is None:
-                new_position = self.get_front()
+            new_position = self.get_front()
             if self.back:
                 self.back.move(self.position)
             super().move(new_position)
@@ -293,10 +295,9 @@ class BoardRules():
         self.character.change_direction(direction)
 
     # A bit undescriptive but it just runs a tick basically
-    def move_character(self, front=None):
+    def move_character(self):
         front = self.character.get_front()
         tile = self.board.get_tile(front)
-        print(front)
         self.on_collide[tile](tile)
 
     # Logic functions ==============================================================================================================
