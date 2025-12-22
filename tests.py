@@ -33,7 +33,6 @@ class Tile:
         self.sprite = self.replace_sprite(file_dir) if file_dir else None
         # Alternate when not using sprites
         self.color = color
-
         self.position = position
 
         # 2 Main rules, is it collision sensitive or a collectible? 0 means neither
@@ -50,14 +49,13 @@ class Tile:
 
     # Helper function for drawing
     def scale_to_board(self, tile_unit):
-        print(self.position)
-        return tuple(pos * tile_unit for pos in self.position),
+        return tuple(pos * tile_unit for pos in self.position)
 
     def draw(self, surface:pygame.Surface, scale=1):
         if self.sprite:
             surface.blit(self.sprite.scale_by(scale), self.position)
         else:
-            pygame.draw.rect(surface, self.color, (*self.scale_to_board(scale), (scale, scale))) # Placeholder
+            pygame.draw.rect(surface, self.color, (self.scale_to_board(scale), (scale, scale))) # Placeholder
 
     # Tile Data Functions ==============================================================================================================
     def move(self, new_position:tuple):
@@ -92,7 +90,6 @@ class Collectibles():
         def __init__(self, position=(0, 0), tier=1, value=1, file_dir=None):
             self.tier = tier
             self.value = value
-
             super().__init__(position=position, personality=2, color=(255, 0, 0), file_dir=file_dir)
     
     # Do change this, maybe instead pass the entire map
@@ -195,7 +192,6 @@ class GameBoard(pygame.Surface):
             for col_index, column in enumerate(row):
                 if self.map[row_index][col_index] != 0:
                     tile = self.map[row_index][col_index]
-                    print(tile)
                     tile.draw(self, self.tile_unit)
 
     def draw_board(self, window, position:tuple):
@@ -247,6 +243,7 @@ class GameBoard(pygame.Surface):
 
     # The main bulk of the game logic runs here ==============================================================================================================
     def run_game(self):
+        print()
         pass
 
 # Game Logic built here ==============================================================================================================
@@ -273,11 +270,6 @@ class BoardRules():
             1:'asdasd',
             2:self.collide_fruit
         }
-        
-        
-        # Here for sad
-            # for key, value in attributes.items():
-            #     setattr(self, key, value)
     
     def key_event(self):
         for event in pygame.event.get():
@@ -301,16 +293,15 @@ class BoardRules():
         self.character.change_direction(direction)
 
     # A bit undescriptive but it just runs a tick basically
-    # 
     def move_character(self, front=None):
         front = self.character.get_front()
-        self.on_collide[int(self.board.get_tile(front))](self.board.get_tile(front))
+        tile = self.board.get_tile(front)
+        print(front)
+        self.on_collide[tile](tile)
 
     # Logic functions ==============================================================================================================
     def check_collisions(self, character:Tile, board:GameBoard):
         pass
-
-
 
     # On Collide Functions
     def collide_fruit(self, front):
@@ -319,7 +310,6 @@ class BoardRules():
         tail = self.character.get_tail()
         self.character.move()
         self.character.grow(tail)
-
 
     # Utility functions
     def spawn_fruit(self):
