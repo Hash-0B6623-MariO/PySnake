@@ -10,6 +10,7 @@ import random
 # - Optimization for movement, constant checks for moving a character
 #       * Currently nested to one check but could be done with dicts
 # - Update spawner
+# Augur
 
 
 # Prio: Final struct for tile and board class
