@@ -199,6 +199,7 @@ class GameBoard(pygame.Surface):
     def clear_tile(self, position):
         x, y = position
         tile = self.get_tile(position)
+        print(tile)
         self.instances.remove(tile)
         self.map[x][y] = 0
 
