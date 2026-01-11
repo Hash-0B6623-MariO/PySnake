@@ -1,9 +1,20 @@
 import pygame
 
 class DialogueBox:
-    def __init__(self, text="Interact", size=(300, 150), color=(50, 50, 50), text_color=(255, 255, 255), callback=None):
+    ''' Acts as both an interact button or a label '''
+    # Defaults
+    _color = (50, 50, 50)
+    _bounds = (300, 150)
+    _size = (40, 40) # Not used, placeholder
+    
+    _text = "Oops, Something broke and now you have to debug lmao"
+    _text_color = (255, 255, 255)
+    _font = "Arial"
+    _font_size = 24
+
+    def __init__(self, text=_text, font=_font, font_size=_font_size, bounds=_bounds, color=_color, text_color=_color, callback=None):
         # Geometry (Position is now set by the Parent Container)
-        self.rect = pygame.Rect(0, 0, size[0], size[1])
+        self.rect = pygame.Rect(0, 0, bounds[0], bounds[1])
         self.hitbox_rect = self.rect.copy() 
         
         # State & Logic
@@ -13,7 +24,7 @@ class DialogueBox:
         self.text = text
         self.callback = callback
 
-        # Aesthetics
+        # Aesthetics (Dynamic)
         self.styles = {
             "bg": color, 
             "bg_hover": tuple(min(c + 20, 255) for c in color), # Auto-calculate hover
@@ -21,17 +32,15 @@ class DialogueBox:
             "border_color": (200, 200, 200),
             "border_width": 2,
             "text_color": text_color,
-            "font_name": "Arial",
-            "font_size": 24
         }
-        self.update_font()
+        self.update_font(font,font_size)
+
+
 
     def update_style(self, tag, value):
         """ bg, bg_hover, bg_click, border_color, border_width, text_color, font_name, font_size """
         if tag in self.styles:
             self.styles[tag] = value
-            if tag in ["font_name", "font_size"]:
-                self.update_font()
 
     def update_styles(self, styles: dict):
         self.styles = {**self.styles, **styles}
@@ -40,10 +49,10 @@ class DialogueBox:
         """Used by GameHUD to refresh scores or status."""
         self.text = new_text
 
-    def update_font(self):
+    def update_font(self, font:str, size:int):
         if not pygame.font.get_init():
             pygame.font.init()
-        self.font = pygame.font.SysFont(self.styles["font_name"], self.styles["font_size"])
+        self.font = pygame.font.Font(font, size)
 
     def set_position(self, x, y):
         """Called by UIContainer.add_element to position the component."""

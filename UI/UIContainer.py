@@ -1,5 +1,7 @@
 import pygame
 
+# Try having this have a font parameter that all children inherit
+
 class UIContainer:
     def __init__(self, position=(0, 0), size=(400, 400), bg_color=(40, 40, 40, 180)):
         self.rect = pygame.Rect(position, size)
@@ -9,7 +11,8 @@ class UIContainer:
         
         self.bg_color = bg_color 
         self.border_color = (100, 100, 100)
-        self.elements = [] 
+        self.elements = []
+
 
     def add_element(self, element, relative_pos=(0, 0), align=None):
         """

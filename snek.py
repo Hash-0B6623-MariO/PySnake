@@ -1,8 +1,9 @@
+''' Custom classes imports '''
+from GameHUD import GameHUD
+
 import pygame
 import random
 
-''' Custom classes imports '''
-from UI.GameHUD import GameHUD
 
 
 # 12/08/25 - Take two, now implements basic tile logic and state storage
@@ -241,6 +242,7 @@ class BoardRules():
         self.character = self.find_character()
         self.buffer = []
         self.score = 0
+        self.multiplier = 0
 
         self.key_mapping = {
             pygame.K_w: (0, -1),
