@@ -1,6 +1,7 @@
 ''' Custom classes imports '''
-from GameHUD import GameHUD
+from GameHud import GameHUD
 
+import json
 import pygame
 import random
 
@@ -8,17 +9,20 @@ import random
 
 # 12/08/25 - Take two, now implements basic tile logic and state storage
 # Stuff to add:
-# - Json config reading/writing for game settings and board layouts
+# - Centralize input assignment
 # - Handling palettes and sprites
 # - Optimization for movement, constant checks for moving a character
 #       * Currently nested to one check but could be done with dicts
 # - Update spawner
 # Augur
 
-# Fix:
-# - When length of more than 1, snake head can move backwards into body by changing directions faster than the tick rate
+# Prio: Final struct for board class
 
-# Prio: Final struct for tile and board class
+# Note: 
+# - config currently is for aesthetics only
+# - Funky interaction with how inputs are picked up, 
+#   needs to be centralized since wherever the mouse is at 
+#   chooses where the input goes to
 
 class Tile:
     # Each id corresponds to a unique tile type, the rest of the code refers to types as ids
@@ -228,7 +232,7 @@ class GameBoard(pygame.Surface):
                 if 0 <= tx < self.bounds[0] and 0 <= ty < self.bounds[1]:
                     self.map[ty][tx] = curr
                 curr = getattr(curr, 'back', None)
-        
+
 # Game Logic built here ==============================================================================================================
 # Includes rules, win conditions, collisions and controls
 # Notes: 
@@ -241,8 +245,11 @@ class BoardRules():
         self.board = board
         self.character = self.find_character()
         self.buffer = []
-        self.score = 0
-        self.multiplier = 0
+        self.stat = {
+            "score": 0,
+            "multiplier": 1,
+            "fruit_count": 0
+        }
 
         self.key_mapping = {
             pygame.K_w: (0, -1),
@@ -258,6 +265,10 @@ class BoardRules():
             -1: self.game_over
         }
 
+        self.game_state = {
+            "running": True,
+
+        }
     def key_event(self, event):
         """ Processes a single event passed from the main loop. """
         if event.type == pygame.KEYDOWN:
@@ -282,13 +293,13 @@ class BoardRules():
         return self.board.search_board(9)[0]
     
     def game_over(self, tile=None):
-        print(f"Game Over! Final Score: {self.score}")
+        print(f"Game Over! Final Score: {self.stat["score"]}")
         pygame.quit()
         exit()
 
     def check_collisions(self):
         target_pos = self.character.get_front()
-        front_tile = self.board.get_tile(target_pos)
+        front_tile = self.board.get_tile(target_pos) 
         # Check if it's a Tile object or an integer (0 or -1)
         lookup = front_tile.personality if hasattr(front_tile, 'personality') else front_tile
         
@@ -297,31 +308,63 @@ class BoardRules():
 
     def collide_fruit(self, tile: Collectibles.Fruit):
         self.character.grow_into(tile.position)
-        self.score += (tile.tier * 10)
+        self.stat["score"] += (tile.tier * 10)
+        self.stat["fruit_count"] += 1
         self.board.clear_tile(tile)
         self.spawn_fruit()
 
     def move_character(self, tile=None):
         self.character.move()
-        
+    
+
     def spawn_fruit(self):
         available = self.board.get_available()
         if available:
             self.board.add_tile(Collectibles.fruit_rand(available))
 
+    # Work here =============================================================================================================
+    # Try to optimize
+    def check_global(self):
+        ''' Runs checks for global changes '''
+        if self.stat["fruit_count"] > 10:
+            self.stat["multiplier"] += 1
+            self.stat["fruit_count"] = 0
+
     def run_tick(self):
         self.process_buffer()
         self.check_collisions()
         self.board.refresh_map()
-        
+
+
 class SnakeGame:
     def __init__(self):
-        self.config = {"window_background": (10, 10, 10)}
+        # Aesthetic properties
+        self.config = {
+            "window_background": (10, 10, 10),
+            "font": "Game/Assets/Hud/Font/KiwiSoda.ttf",
+            "center_position": 0
+            }
+        
+        # Game properties
         self.attributes = {
             "board_dimensions": [15, 15],
             "board_unit": 30,
-            "board_palette": ((40, 40, 40), (50, 50, 50))
+            "board_palette": ((40, 40, 40), (50, 50, 50)),
         }
+
+        # Player actions regarding the menu/system
+        self.keybinds = {
+            pygame.QUIT: pygame.quit,
+            pygame.K_SPACE: self.pause_game
+
+        }
+
+        self.hud_callbacks = {
+            "Menu":{
+                "pause": self.pause_game
+                }
+        }
+
         self.set_config()
         self.initialize_objects()
         
@@ -329,10 +372,53 @@ class SnakeGame:
         self.tick_speed = 125 # Milliseconds per tick (8 FPS)
         self.last_tick = pygame.time.get_ticks()
 
+    def get_center(self):
+        return ((self.window.get_width() - self.board.get_width()) // 2, 
+                (self.window.get_height() - self.board.get_height()) // 2)
+
+    # File reading functions
     def set_config(self):
         pygame.init()
         self.window = pygame.display.set_mode((800, 600))
         pygame.display.set_caption("Snake - Tile Logic")
+    
+    def read_config(self, file_path):
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+                return data
+        except Exception as e:
+            print(f"Error reading config file: {e}")
+            return {}
+    
+    def write_config(self, file_path, data):
+        try:
+            with open(file_path, 'w') as f:
+                json.dump(data, f, indent=4)
+        except Exception as e:
+            print(f"Error writing config file: {e}")
+
+    def pause_game(self):
+        self.paused = True
+        while self.paused:
+            print("Game Paused")
+
+        
+
+    def game_tick(self):
+        # TICK LOGIC
+        now = pygame.time.get_ticks()
+        if now - self.last_tick >= self.tick_speed:
+            self.r.run_tick()
+            self.hud.update()
+            self.last_tick = now
+
+    def render(self):
+        # RENDER
+        self.window.fill(self.config["window_background"])
+        self.board.draw_board(self.window, self.config["center_position"])
+        self.hud.draw(self.window)
+        pygame.display.flip()
 
     def initialize_objects(self):
         a = self.attributes
@@ -342,42 +428,33 @@ class SnakeGame:
         self.board.add_tile(self.character)
         self.r = BoardRules(self.board)
         self.r.spawn_fruit()
-        
-        self.hud = GameHUD(self.r, self.window.get_size())
 
-    def get_center(self):
-        return ((self.window.get_width() - self.board.get_width()) // 2, 
-                (self.window.get_height() - self.board.get_height()) // 2)
+        self.config["center_position"] = self.get_center()
+        self.hud = GameHUD(self.r.stat, self.config, self.hud_callbacks, self.window.get_size())
+
+
+    def check_input(self):
+        # SINGLE EVENT LOOP
+        for event in pygame.event.get():
+            # Special cases
+            # Keyboard
+            if event.type == pygame.KEYDOWN:
+                if event.key in self.keybinds.keys():
+                    self.keybinds[event.key]()
+
+            # UI handling
+            ui_captured = self.hud.handle_events(event)
+
+
+            # Game priority: If UI didn't want it, pass to rules
+            if not ui_captured:
+                self.r.key_event(event) 
 
     def run(self):
-        center = self.get_center()
-
         while True:
-            # SINGLE EVENT LOOP
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    exit()
-
-                # UI priority: buttons/menus get first dibs
-                ui_captured = self.hud.handle_events(event)
-
-                # Game priority: If UI didn't want it, pass to rules
-                if not ui_captured:
-                    self.r.key_event(event) 
-
-            # TICK LOGIC
-            now = pygame.time.get_ticks()
-            if now - self.last_tick >= self.tick_speed:
-                self.r.run_tick()
-                self.hud.update()
-                self.last_tick = now
-
-            # RENDER
-            self.window.fill(self.config["window_background"])
-            self.board.draw_board(self.window, center)
-            self.hud.draw(self.window)
-            pygame.display.flip()
+            self.check_input()
+            self.game_tick()
+            self.render()
 
 if __name__ == "__main__":
     SnakeGame().run()
