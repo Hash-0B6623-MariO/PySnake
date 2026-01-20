@@ -247,7 +247,7 @@ class BoardRules():
         self.buffer = []
         self.stat = {
             "score": 0,
-            "multiplier": 1,
+            "multiplier": 1.0,
             "fruit_count": 0
         }
 
@@ -327,7 +327,7 @@ class BoardRules():
     def check_global(self):
         ''' Runs checks for global changes '''
         if self.stat["fruit_count"] > 10:
-            self.stat["multiplier"] += 1
+            self.stat["multiplier"] += 1.0
             self.stat["fruit_count"] = 0
 
     def run_tick(self):
@@ -353,7 +353,7 @@ class SnakeGame:
         }
 
         # Player actions regarding the menu/system
-        self.keybinds = {
+        self.key_mapping = {
             pygame.QUIT: pygame.quit,
             pygame.K_SPACE: self.pause_game
 
@@ -431,6 +431,7 @@ class SnakeGame:
 
         self.config["center_position"] = self.get_center()
         self.hud = GameHUD(self.r.stat, self.config, self.hud_callbacks, self.window.get_size())
+        self.hud.setKeybinds([self.r.key_mapping, self.key_mapping])
 
 
     def check_input(self):
@@ -439,8 +440,8 @@ class SnakeGame:
             # Special cases
             # Keyboard
             if event.type == pygame.KEYDOWN:
-                if event.key in self.keybinds.keys():
-                    self.keybinds[event.key]()
+                if event.key in self.key_mapping.keys():
+                    self.key_mapping[event.key]()
 
             # UI handling
             ui_captured = self.hud.handle_events(event)

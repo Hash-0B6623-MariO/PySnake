@@ -41,5 +41,4 @@ class UIStack:
     def draw(self, surface):
         """Draws elements from bottom to top so overlays appear on top."""
         for element in self.elements:
-            # We assume containers and boxes have a .draw() method
             element.draw(surface)

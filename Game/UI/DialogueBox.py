@@ -46,7 +46,7 @@ class DialogueBox:
         self.styles = {**self.styles, **styles}
 
     def update_text(self, new_text):
-        """Used by GameHUD to refresh scores or status."""
+        """ Used by GameHUD to refresh scores or status. """
         self.text = new_text
 
     def update_font(self, font:str, size:int):

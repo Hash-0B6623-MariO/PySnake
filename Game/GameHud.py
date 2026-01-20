@@ -2,6 +2,8 @@ from UI.UIStack import UIStack
 from UI.UIContainer import UIContainer
 from UI.DialogueBox import DialogueBox
 
+from UserInput import InputHandler, InputMask
+
 # The Deadlock Chain Incident of 1/13/2026
 # from BoardRules import BoardRules
 
@@ -19,7 +21,6 @@ class StatDisplay(UIContainer):
             position=(0, 10), # 10 pixels padding from top
         )
         
-        # Initialize the score box using your DialogueBox logic
         # We place it in the center of our wide HUD container
         self.score_box = DialogueBox(
             text=f"SCORE: {self.stat["score"]}",
@@ -30,7 +31,7 @@ class StatDisplay(UIContainer):
         )
 
         self.multiplier_box = DialogueBox(
-            text=f"MULTIPLIER: x{self.stat["multiplier"]}",
+            text=f"MULTIPLIER: x{self.stat["multiplier"]:.3f}",
             bounds=(200, 40),
             color=(40, 40, 40),
             text_color=(255, 255, 255),
@@ -39,10 +40,13 @@ class StatDisplay(UIContainer):
         
         # Align the score box to the top-middle
         self.add_element(self.score_box, align="center")
+        # Align the multiplier box to the top-right
+        self.add_element(self.multiplier_box, relative_pos=(window_width - 220, 5))
 
     def update(self):
         """ Syncs the display with the current score from rules. """
         self.score_box.update_text(f"SCORE: {self.stat["score"]}")
+        self.multiplier_box.update_text(f"MULTIPLIER: x{self.stat["multiplier"]:.3f}")
 
 class PauseMenu(UIContainer):
     ''' A simple pause menu overlay '''
@@ -94,9 +98,21 @@ class GameHUD(UIStack):
         self.stat = stat
         self.config = config
         self.width, self.height = window_size
+        self.key_mask = None
         
         # Initialize and organize components
         self.setup_components(callbacks)
+
+    def setKeybinds(self, keybinds:list):
+        """ Sets up an InputHandler and InputMask for HUD input capture. """
+        # Create InputHandler with merged keybinds
+        input_handler = InputHandler(keybinds)
+        for keybind in keybinds:
+            input_handler.merge(keybind)
+
+        # Create InputMask covering the whole screen
+        self.key_mask = InputMask((self.width, self.height), input_handler)
+        self.push(self.key_mask)
 
     def setup_components(self, callbacks:dict):
         """ 
