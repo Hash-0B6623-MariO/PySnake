@@ -245,17 +245,25 @@ class BoardRules():
         self.board = board
         self.character = self.find_character()
         self.buffer = []
-        self.stat = {
+        self.game_state = {
+            "running": True,
             "score": 0,
             "multiplier": 1.0,
             "fruit_count": 0
         }
 
         self.key_mapping = {
-            pygame.K_w: (0, -1),
-            pygame.K_s: (0, 1),
-            pygame.K_a: (-1, 0),
-            pygame.K_d: (1, 0)
+            pygame.K_w: "UP",
+            pygame.K_s: "DOWN",
+            pygame.K_a: "LEFT",
+            pygame.K_d: "RIGHT"
+        }
+
+        self.move_dir = {
+            "UP": (0, -1),
+            "DOWN": (0, 1),
+            "LEFT": (-1, 0),
+            "RIGHT": (1, 0)
         }
 
         self.on_collide = {
@@ -265,10 +273,8 @@ class BoardRules():
             -1: self.game_over
         }
 
-        self.game_state = {
-            "running": True,
 
-        }
+
     def key_event(self, event):
         """ Processes a single event passed from the main loop. """
         if event.type == pygame.KEYDOWN:
@@ -277,6 +283,13 @@ class BoardRules():
                 # Avoid adding the same direction twice in one tick
                 if not self.buffer or self.buffer[-1] != new_dir:
                     self.buffer.append(new_dir)
+
+    
+
+    def change_direction(self):
+
+        
+
 
     def is_illegal_turn(self, new_dir):
         opposite = (new_dir[0] * -1, new_dir[1] * -1)
@@ -293,7 +306,7 @@ class BoardRules():
         return self.board.search_board(9)[0]
     
     def game_over(self, tile=None):
-        print(f"Game Over! Final Score: {self.stat["score"]}")
+        print(f"Game Over! Final Score: {self.game_state["score"]}")
         pygame.quit()
         exit()
 
@@ -308,15 +321,14 @@ class BoardRules():
 
     def collide_fruit(self, tile: Collectibles.Fruit):
         self.character.grow_into(tile.position)
-        self.stat["score"] += (tile.tier * 10)
-        self.stat["fruit_count"] += 1
+        self.game_state["score"] += (tile.tier * 10)
+        self.game_state["fruit_count"] += 1
         self.board.clear_tile(tile)
         self.spawn_fruit()
 
     def move_character(self, tile=None):
         self.character.move()
     
-
     def spawn_fruit(self):
         available = self.board.get_available()
         if available:
@@ -326,9 +338,9 @@ class BoardRules():
     # Try to optimize
     def check_global(self):
         ''' Runs checks for global changes '''
-        if self.stat["fruit_count"] > 10:
-            self.stat["multiplier"] += 1.0
-            self.stat["fruit_count"] = 0
+        if self.game_state["fruit_count"] > 10:
+            self.game_state["multiplier"] += 1.0
+            self.game_state["fruit_count"] = 0
 
     def run_tick(self):
         self.process_buffer()
@@ -356,9 +368,9 @@ class SnakeGame:
         self.key_mapping = {
             pygame.QUIT: pygame.quit,
             pygame.K_SPACE: self.pause_game
-
         }
 
+        # Callback functions for hud components
         self.hud_callbacks = {
             "Menu":{
                 "pause": self.pause_game
@@ -403,7 +415,13 @@ class SnakeGame:
         while self.paused:
             print("Game Paused")
 
-        
+    # Does the thing
+    def resetActionMap(self):
+        """ Sets keybinds for both the HUD and the game rules. """
+        self.hud.setActionMap({
+            "player":self.r.key_mapping, 
+            "user":self.key_mapping})
+
 
     def game_tick(self):
         # TICK LOGIC
@@ -430,8 +448,11 @@ class SnakeGame:
         self.r.spawn_fruit()
 
         self.config["center_position"] = self.get_center()
-        self.hud = GameHUD(self.r.stat, self.config, self.hud_callbacks, self.window.get_size())
-        self.hud.setKeybinds([self.r.key_mapping, self.key_mapping])
+        self.hud = GameHUD(self.r.game_state, self.config, self.hud_callbacks, self.window.get_size())
+        # TODO: Do update this one when developing further
+        self.hud.setActionMap({
+            "player":self.r.key_mapping, 
+            "user":self.key_mapping})
 
 
     def check_input(self):
@@ -448,8 +469,6 @@ class SnakeGame:
 
 
             # Game priority: If UI didn't want it, pass to rules
-            if not ui_captured:
-                self.r.key_event(event) 
 
     def run(self):
         while True:

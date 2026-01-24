@@ -13,7 +13,7 @@ import pygame
 class StatDisplay(UIContainer):
     ''' Displays the score and multiplier '''
     def __init__(self, stat:dict, config:dict, window_width: int):
-        self.stat = stat
+        self.game_state = stat
         self.config = config
         # Create a container that spans the top of the window
         super().__init__(
@@ -23,7 +23,7 @@ class StatDisplay(UIContainer):
         
         # We place it in the center of our wide HUD container
         self.score_box = DialogueBox(
-            text=f"SCORE: {self.stat["score"]}",
+            text=f"SCORE: {self.game_state["score"]}",
             bounds=(200, 40),
             color=(40, 40, 40),
             text_color=(255, 255, 255),
@@ -31,7 +31,7 @@ class StatDisplay(UIContainer):
         )
 
         self.multiplier_box = DialogueBox(
-            text=f"MULTIPLIER: x{self.stat["multiplier"]:.3f}",
+            text=f"MULTIPLIER: x{self.game_state["multiplier"]:.3f}",
             bounds=(200, 40),
             color=(40, 40, 40),
             text_color=(255, 255, 255),
@@ -45,8 +45,8 @@ class StatDisplay(UIContainer):
 
     def update(self):
         """ Syncs the display with the current score from rules. """
-        self.score_box.update_text(f"SCORE: {self.stat["score"]}")
-        self.multiplier_box.update_text(f"MULTIPLIER: x{self.stat["multiplier"]:.3f}")
+        self.score_box.update_text(f"SCORE: {self.game_state["score"]}")
+        self.multiplier_box.update_text(f"MULTIPLIER: x{self.game_state["multiplier"]:.3f}")
 
 class PauseMenu(UIContainer):
     ''' A simple pause menu overlay '''
@@ -95,7 +95,7 @@ class GameHUD(UIStack):
     """
     def __init__(self, stat:dict, config:dict, callbacks:dict, window_size:tuple):
         super().__init__()
-        self.stat = stat
+        self.game_state = stat
         self.config = config
         self.width, self.height = window_size
         self.key_mask = None
@@ -103,12 +103,12 @@ class GameHUD(UIStack):
         # Initialize and organize components
         self.setup_components(callbacks)
 
-    def setKeybinds(self, keybinds:list):
+    def setActionMap(self, keybinds:dict):
         """ Sets up an InputHandler and InputMask for HUD input capture. """
-        # Create InputHandler with merged keybinds
+        # Create InputHandler with setActionMapd keybinds
         input_handler = InputHandler(keybinds)
         for keybind in keybinds:
-            input_handler.merge(keybind)
+            input_handler.setActionMap(keybind)
 
         # Create InputMask covering the whole screen
         self.key_mask = InputMask((self.width, self.height), input_handler)
@@ -119,7 +119,7 @@ class GameHUD(UIStack):
         Creates UIContainers for different screen regions and 
         pushes them onto the internal stack.
         """
-        self.push(StatDisplay(self.stat, self.config, self.width))
+        self.push(StatDisplay(self.game_state, self.config, self.width))
         self.push(PauseMenu((self.width, self.height), self.config, callbacks["Menu"]))
     
     def update(self):

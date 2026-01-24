@@ -66,7 +66,7 @@ class DialogueBox:
             self.is_pressed = False
 
     def handle_event(self, event):
-        if not self.active: return
+        if not self.active: return False
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1 and self.hitbox_rect.collidepoint(event.pos):
@@ -77,9 +77,10 @@ class DialogueBox:
                 if self.is_pressed and self.hitbox_rect.collidepoint(event.pos):
                     if self.callback: self.callback()
                 self.is_pressed = False
+        return True
 
     def draw(self, surface):
-        if not self.active: return
+        if not self.active: return False
         self._update_visual_state()
 
         # Render Logic

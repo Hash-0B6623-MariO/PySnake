@@ -48,7 +48,7 @@ class GameBoard:
         self.fps = 2
 
         # BoardStatus
-        self.status = {
+        self.game_stateus = {
             "points" : self.fruit.getPoints,
             
             # Kinda pointless atm
