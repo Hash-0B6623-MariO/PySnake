@@ -128,5 +128,8 @@ class GameHUD(UIStack):
             if hasattr(element, 'update'):
                 element.update()
 
+    # Specific functions for changes in game state
+    
+
 
     # Helper functions

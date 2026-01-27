@@ -246,24 +246,26 @@ class BoardRules():
         self.character = self.find_character()
         self.buffer = []
         self.game_state = {
-            "running": True,
+            "state": True,
             "score": 0,
             "multiplier": 1.0,
-            "fruit_count": 0
+            "fruit_count": 0,
+            
+            # Game loop
+            "tick_rate": 8,
+            "last_tick": 0,
+            "turns": 0,          # Actually refers to the number of ticks passed
+            "time": 0,
+
+            
         }
 
-        self.key_mapping = {
-            pygame.K_w: "UP",
-            pygame.K_s: "DOWN",
-            pygame.K_a: "LEFT",
-            pygame.K_d: "RIGHT"
-        }
-
+        # Character movement mapping
         self.move_dir = {
-            "UP": (0, -1),
-            "DOWN": (0, 1),
-            "LEFT": (-1, 0),
-            "RIGHT": (1, 0)
+            "UP": self.change_direction((0, -1)),
+            "DOWN": self.change_direction((0, 1)),
+            "LEFT": self.change_direction((-1, 0)),
+            "RIGHT": self.change_direction((1, 0))
         }
 
         self.on_collide = {
@@ -273,7 +275,21 @@ class BoardRules():
             -1: self.game_over
         }
 
+        self.key_mapping = {
+            pygame.K_w: self.move_dir["UP"],
+            pygame.K_s: self.move_dir["DOWN"],
+            pygame.K_a: self.move_dir["LEFT"],
+            pygame.K_d: self.move_dir["RIGHT"],
+        }
 
+        # Contains the tick functions for each state
+        self.play = {
+            "paused" : self.paused,
+            "running" : self.running,
+            "minnesota": False,
+        }
+
+    
 
     def key_event(self, event):
         """ Processes a single event passed from the main loop. """
@@ -286,9 +302,9 @@ class BoardRules():
 
     
 
-    def change_direction(self):
-
-        
+    def change_direction(self, new_dir):
+        if not self.is_illegal_turn(new_dir):
+            self.character.change_direction(new_dir)
 
 
     def is_illegal_turn(self, new_dir):
@@ -336,49 +352,71 @@ class BoardRules():
 
     # Work here =============================================================================================================
     # Try to optimize
+    def toggle_pause(self):
+        """Toggles state; called by System tag in InputHandler."""
+        self.game_state["running"] = not self.game_state["paused"]
+
+
+    # Game checks/states
     def check_global(self):
         ''' Runs checks for global changes '''
         if self.game_state["fruit_count"] > 10:
             self.game_state["multiplier"] += 1.0
             self.game_state["fruit_count"] = 0
 
-    def run_tick(self):
+    def update_clock(self, dt):
+        """
+        Increments the accumulator based on program delta time.
+        Returns True if a game tick should occur.
+        """            
+        self.accumulator += dt
+        if self.accumulator >= self.tick_rate:
+            self.accumulator -= self.tick_rate
+            return True
+        return False
+
+    def paused(self):
+        pass
+
+    def running(self):
         self.process_buffer()
         self.check_collisions()
         self.board.refresh_map()
+        self.game_state["time"] += 1
+    
+    
+
+    def run_tick(self):
+        self.play[self.game_state["state"]]()  # Call the function corresponding to the current state
 
 
 class SnakeGame:
     def __init__(self):
-        # Aesthetic properties
-        self.config = {
-            "window_background": (10, 10, 10),
-            "font": "Game/Assets/Hud/Font/KiwiSoda.ttf",
-            "center_position": 0
-            }
-        
-        # Game properties
-        self.attributes = {
-            "board_dimensions": [15, 15],
-            "board_unit": 30,
-            "board_palette": ((40, 40, 40), (50, 50, 50)),
-        }
+        pygame.init()
+        # Paths
+        self._path_config = "/PlayerData"
+        self._path_settings = self._path_config + "/GameSettings"
 
-        # Player actions regarding the menu/system
-        self.key_mapping = {
-            pygame.QUIT: pygame.quit,
-            pygame.K_SPACE: self.pause_game
-        }
+        self.config = self._set_config()
+        self.settings = self._set_settings()     # Might move this later
+        self.initialize_objects()
+
+        self.window = pygame.display.set_mode(self.config["window_size"])
+        pygame.display.set_caption(self.config["caption"])
+
 
         # Callback functions for hud components
         self.hud_callbacks = {
             "Menu":{
                 "pause": self.pause_game
                 }
-        }
+            }
 
-        self.set_config()
-        self.initialize_objects()
+        # Player actions regarding the menu/system
+        self.key_mapping = {
+            pygame.QUIT: pygame.quit,
+            pygame.K_SPACE: self.pause_game
+        }
         
         # Timing attributes
         self.tick_speed = 125 # Milliseconds per tick (8 FPS)
@@ -388,30 +426,35 @@ class SnakeGame:
         return ((self.window.get_width() - self.board.get_width()) // 2, 
                 (self.window.get_height() - self.board.get_height()) // 2)
 
-    # File reading functions
-    def set_config(self):
-        pygame.init()
-        self.window = pygame.display.set_mode((800, 600))
-        pygame.display.set_caption("Snake - Tile Logic")
+    # Startup/Initialization ============================================================================================
+    def _set_config(self):
+        return self._read_json(self._path_config)
     
-    def read_config(self, file_path):
+    def _set_settings(self, settings="default.json"):
+        path = self._path_settings + settings
+        return self._read_json(path)
+
+    def _read_json(self, path):
         try:
-            with open(file_path, 'r') as f:
+            with open(path, 'r') as f:
                 data = json.load(f)
                 return data
         except Exception as e:
             print(f"Error reading config file: {e}")
             return {}
     
-    def write_config(self, file_path, data):
+    def _write_json(self, data, path):
         try:
-            with open(file_path, 'w') as f:
+            with open(path, 'w') as f:
                 json.dump(data, f, indent=4)
         except Exception as e:
             print(f"Error writing config file: {e}")
 
+
+
     def pause_game(self):
-        self.paused = True
+        self.r.toggle_pause()
+        self.hud.pause_sequence()
         while self.paused:
             print("Game Paused")
 
@@ -420,8 +463,8 @@ class SnakeGame:
         """ Sets keybinds for both the HUD and the game rules. """
         self.hud.setActionMap({
             "player":self.r.key_mapping, 
-            "user":self.key_mapping})
-
+            "user":self.key_mapping
+            })
 
     def game_tick(self):
         # TICK LOGIC
@@ -432,14 +475,13 @@ class SnakeGame:
             self.last_tick = now
 
     def render(self):
-        # RENDER
         self.window.fill(self.config["window_background"])
         self.board.draw_board(self.window, self.config["center_position"])
         self.hud.draw(self.window)
         pygame.display.flip()
 
     def initialize_objects(self):
-        a = self.attributes
+        a = self.settings
         self.board = GameBoard(dimensions=a["board_dimensions"], tile_unit=a["board_unit"])
         self.board.set_color(a["board_palette"])
         self.character = Entity.Char(position=(5,5))
@@ -454,18 +496,13 @@ class SnakeGame:
             "player":self.r.key_mapping, 
             "user":self.key_mapping})
 
-
     def check_input(self):
         # SINGLE EVENT LOOP
         for event in pygame.event.get():
             # Special cases
-            # Keyboard
-            if event.type == pygame.KEYDOWN:
-                if event.key in self.key_mapping.keys():
-                    self.key_mapping[event.key]()
 
             # UI handling
-            ui_captured = self.hud.handle_events(event)
+            self.hud.handle_events(event)
 
 
             # Game priority: If UI didn't want it, pass to rules
@@ -473,7 +510,6 @@ class SnakeGame:
     def run(self):
         while True:
             self.check_input()
-            self.game_tick()
             self.render()
 
 if __name__ == "__main__":

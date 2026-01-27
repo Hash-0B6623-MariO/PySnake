@@ -87,6 +87,8 @@ class InputHandler:
         if key not in self.input_queue:
             self.input_queue.append(key)
 
+
+
 class InputMask(DialogueBox):
     def __init__(self, screen_size, input_handler):
         super().__init__(text="", bounds=screen_size, color=(0,0,0,0))
