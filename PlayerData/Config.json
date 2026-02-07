@@ -4,7 +4,7 @@
         10,
         10
     ],
-    "font": "Game/Assets/Hud/Font/KiwiSoda.ttf",
+    "font": "Assets/Hud/Font/KiwiSoda.ttf",
     "center_position": 0,
 "window_size": [
   800,

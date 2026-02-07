@@ -3,10 +3,17 @@ from collections import deque
 
 import pygame
 
-class InputHandler:
+
+# Process goes: 
+#   Input -> Buffered -> onTick: Evaluate buffered inputs
+#       Check: if in key_map[A],... -> 
+#           Check: has an event in key_map[A] already activated? if not ->
+#               Invoke function in action_map
+class KeyHandler:
+    ''' Handles input prioritization on key inputs '''
     def __init__(self, keybinds: dict):
         self._key_mapping = keybinds 
-        self._action_mapping = {}
+        self._action_mapping = {}       # Flat assignment of all the key inputs
         self.setActionMap(keybinds)
         
         self.input_queue = [] 
@@ -14,7 +21,6 @@ class InputHandler:
 
         # Strategy Dispatch Table: Map tags to internal logic methods
         self._evaluation_strategies = {
-            "System": self._eval_system,
             "Movement": self._eval_movement,
             "Action": self._eval_standard
         }
@@ -49,13 +55,9 @@ class InputHandler:
         if key in self._action_mapping:
             tag, action = self._action_mapping[key]
             
-            # Look up the strategy for this tag
-            strategy = self._evaluation_strategies.get(tag, self._eval_standard)
+            ret = self._evaluation_strategies[tag](action, tag, processed_tags)
             
-            # Execute strategy; if it returns True, it might stop the loop (like Pause)
-            should_interrupt = strategy(action, tag, processed_tags)
-            
-            if should_interrupt:
+            if ret:
                 return 
 
         # Recursive call for the next item in the buffer
@@ -87,23 +89,3 @@ class InputHandler:
         if key not in self.input_queue:
             self.input_queue.append(key)
 
-
-
-class InputMask(DialogueBox):
-    def __init__(self, screen_size, input_handler):
-        super().__init__(text="", bounds=screen_size, color=(0,0,0,0))
-        self.handler = input_handler
-
-    def handle_event(self, event):
-        """ Blocks mouse bleed-through and buffers keys. """
-        # Keyboard inputs are buffered for end-of-tick processing
-        if event.type == pygame.KEYDOWN:
-            self.handler.handle_keydown(event.key)
-            return True # Consume to prevent other UI from double-triggering
-
-        # Mouse blocking: Return True for mouse events to stop propagation
-        mouse_events = (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION)
-        if event.type in mouse_events:
-            return True 
-
-        return False

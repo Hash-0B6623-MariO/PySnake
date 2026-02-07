@@ -13,5 +13,10 @@ data = {
         "center_position": 0,
         "screen_size": (800, 600)
         }
-with open("test.json", "w") as file:
-    json.dump(data, file, indent=1)
+
+import os
+print("Python is looking in:", os.getcwd())
+
+
+with open("as/afas/test.json", "r") as file:
+    print(json.load(file))

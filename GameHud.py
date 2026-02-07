@@ -2,7 +2,7 @@ from UI.UIStack import UIStack
 from UI.UIContainer import UIContainer
 from UI.DialogueBox import DialogueBox
 
-from UserInput import InputHandler, InputMask
+from UserInput import KeyHandler
 
 # The Deadlock Chain Incident of 1/13/2026
 # from BoardRules import BoardRules
@@ -98,21 +98,14 @@ class GameHUD(UIStack):
         self.game_state = stat
         self.config = config
         self.width, self.height = window_size
-        self.key_mask = None
+        self.callbacks = callbacks["System"]
         
         # Initialize and organize components
         self.setup_components(callbacks)
 
-    def setActionMap(self, keybinds:dict):
-        """ Sets up an InputHandler and InputMask for HUD input capture. """
-        # Create InputHandler with setActionMapd keybinds
-        input_handler = InputHandler(keybinds)
-        for keybind in keybinds:
-            input_handler.setActionMap(keybind)
-
-        # Create InputMask covering the whole screen
-        self.key_mask = InputMask((self.width, self.height), input_handler)
-        self.push(self.key_mask)
+    def system_keybinds(self, callbacks:dict):
+        """ Defines the key mapping for system-level inputs. """
+        pass
 
     def setup_components(self, callbacks:dict):
         """ 
@@ -128,8 +121,24 @@ class GameHUD(UIStack):
             if hasattr(element, 'update'):
                 element.update()
 
-    # Specific functions for changes in game state
+    def _handle_event(self, event):
+        """ Internal method to handle system events. """
+        # Check for system-level inputs first (e.g., pause)
+        if event.type == pygame.KEYDOWN and event.key in self.callbacks:
+            self.callbacks[event.key]()
+            return True  # Event handled, stop propagation
+        return False
     
+
+    def handle_events(self, event):
+        """ Top-level event handler for the HUD. Delegates to UIStack's method. Prioritizes System inputs. """
+
+        return super().handle_events(event)
+    
+    # Specific functions for changes in game state
+    def pause_sequence(self):
+        """ Toggles the pause menu and game state. """
+        pass
 
 
     # Helper functions

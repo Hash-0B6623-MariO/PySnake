@@ -283,7 +283,7 @@ class BoardRules():
         }
 
         # Contains the tick functions for each state
-        self.play = {
+        self.state = {
             "paused" : self.paused,
             "running" : self.running,
             "minnesota": False,
@@ -382,28 +382,23 @@ class BoardRules():
         self.process_buffer()
         self.check_collisions()
         self.board.refresh_map()
-        self.game_state["time"] += 1
-    
-    
+        self.game_state["time"] += 1   
 
     def run_tick(self):
-        self.play[self.game_state["state"]]()  # Call the function corresponding to the current state
+        self.state[self.game_state["state"]]()  # Call the function corresponding to the current state
 
 
 class SnakeGame:
+    path_config:str = "PlayerData/Config.json"   # Type hinted because it causes an error when using string operations
+    path_settings:str = "PlayerData/GameSettings"    # Mapping
+
     def __init__(self):
         pygame.init()
-        # Paths
-        self._path_config = "/PlayerData"
-        self._path_settings = self._path_config + "/GameSettings"
-
         self.config = self._set_config()
         self.settings = self._set_settings()     # Might move this later
-        self.initialize_objects()
 
         self.window = pygame.display.set_mode(self.config["window_size"])
         pygame.display.set_caption(self.config["caption"])
-
 
         # Callback functions for hud components
         self.hud_callbacks = {
@@ -411,16 +406,24 @@ class SnakeGame:
                 "pause": self.pause_game
                 }
             }
-
+        
         # Player actions regarding the menu/system
         self.key_mapping = {
             pygame.QUIT: pygame.quit,
             pygame.K_SPACE: self.pause_game
         }
+
+        self.initialize_objects()
+
+        self.states = {
+            "running": self.r.running,
+            "paused": self.r.paused
+        }
         
         # Timing attributes
         self.tick_speed = 125 # Milliseconds per tick (8 FPS)
         self.last_tick = pygame.time.get_ticks()
+
 
     def get_center(self):
         return ((self.window.get_width() - self.board.get_width()) // 2, 
@@ -428,16 +431,17 @@ class SnakeGame:
 
     # Startup/Initialization ============================================================================================
     def _set_config(self):
-        return self._read_json(self._path_config)
+        return self._read_json(SnakeGame.path_config)
     
-    def _set_settings(self, settings="default.json"):
-        path = self._path_settings + settings
+    def _set_settings(self, settings="/default"):
+        path = SnakeGame.path_settings + settings + ".json"
         return self._read_json(path)
 
     def _read_json(self, path):
         try:
             with open(path, 'r') as f:
                 data = json.load(f)
+                print(data)
                 return data
         except Exception as e:
             print(f"Error reading config file: {e}")
@@ -466,6 +470,8 @@ class SnakeGame:
             "user":self.key_mapping
             })
 
+
+# Game runtime loops
     def game_tick(self):
         # TICK LOGIC
         now = pygame.time.get_ticks()
@@ -473,6 +479,13 @@ class SnakeGame:
             self.r.run_tick()
             self.hud.update()
             self.last_tick = now
+
+
+    def paused(self):
+        pass
+
+    def running(self):
+        self.game_tick()
 
     def render(self):
         self.window.fill(self.config["window_background"])
@@ -511,6 +524,7 @@ class SnakeGame:
         while True:
             self.check_input()
             self.render()
+            self.states[self.r.game_state["state"]]()  # Call the function corresponding to the current state
 
 if __name__ == "__main__":
     SnakeGame().run()
