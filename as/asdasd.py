@@ -10,7 +10,7 @@ print(8**0)
 data = {
         "window_background": (10, 10, 10),
         "font": "Game/Assets/Hud/Font/KiwiSoda.ttf",
-        "center_position": 0,
+        "center_window": 0,
         "screen_size": (800, 600)
         }
 

@@ -1,5 +1,8 @@
+
 ''' Custom classes imports '''
 from GameHud import GameHUD
+from UserInput import FileHandler as data
+from UserInput import KeyHandler
 
 import json
 import pygame
@@ -179,7 +182,7 @@ class GameBoard(pygame.Surface):
                 curr = getattr(curr, 'back', None)
         return occupied
     
-    def get_center(self):
+    def centerBoard(self):
         w, h = self.bounds
         return ((w-1)//2, (h-1)//2)
 
@@ -244,7 +247,6 @@ class BoardRules():
     def __init__(self, board: GameBoard):
         self.board = board
         self.character = self.find_character()
-        self.buffer = []
         self.game_state = {
             "state": True,
             "score": 0,
@@ -252,21 +254,11 @@ class BoardRules():
             "fruit_count": 0,
             
             # Game loop
-            "tick_rate": 8,
-            "last_tick": 0,
-            "turns": 0,          # Actually refers to the number of ticks passed
-            "time": 0,
-
-            
+            "tick_rate": 8, # Game speed
+            "ticks": pygame.time.get_ticks,       
+            "time": lambda:pygame.time.get_ticks()/1000,   
         }
-
-        # Character movement mapping
-        self.move_dir = {
-            "UP": self.change_direction((0, -1)),
-            "DOWN": self.change_direction((0, 1)),
-            "LEFT": self.change_direction((-1, 0)),
-            "RIGHT": self.change_direction((1, 0))
-        }
+        self.clock = 0      # Helper variable for calculating delta time
 
         self.on_collide = {
             0: self.move_character,
@@ -275,11 +267,13 @@ class BoardRules():
             -1: self.game_over
         }
 
-        self.key_mapping = {
-            pygame.K_w: self.move_dir["UP"],
-            pygame.K_s: self.move_dir["DOWN"],
-            pygame.K_a: self.move_dir["LEFT"],
-            pygame.K_d: self.move_dir["RIGHT"],
+        self.action_map = {
+            "movement":{
+                "move_up": self.change_direction((0, -1)),
+                "move_down": self.change_direction((0, 1)),
+                "move_left": self.change_direction((-1, 0)),
+                "move_right": self.change_direction((1, 0))
+                }
         }
 
         # Contains the tick functions for each state
@@ -289,38 +283,21 @@ class BoardRules():
             "minnesota": False,
         }
 
-    
-
-    def key_event(self, event):
-        """ Processes a single event passed from the main loop. """
-        if event.type == pygame.KEYDOWN:
-            if event.key in self.key_mapping:
-                new_dir = self.key_mapping[event.key]
-                # Avoid adding the same direction twice in one tick
-                if not self.buffer or self.buffer[-1] != new_dir:
-                    self.buffer.append(new_dir)
-
-    
-
+# Runtime functions 
     def change_direction(self, new_dir):
         if not self.is_illegal_turn(new_dir):
             self.character.change_direction(new_dir)
-
 
     def is_illegal_turn(self, new_dir):
         opposite = (new_dir[0] * -1, new_dir[1] * -1)
         return opposite == self.character.last_moved_direction
 
-    def process_buffer(self):
-        while self.buffer:
-            next_move = self.buffer.pop(0)
-            if not self.is_illegal_turn(next_move):
-                self.character.change_direction(next_move)
-                break 
-
     def find_character(self) -> Entity.Char:
         return self.board.search_board(9)[0]
-    
+
+
+
+# Collision logic
     def game_over(self, tile=None):
         print(f"Game Over! Final Score: {self.game_state["score"]}")
         pygame.quit()
@@ -352,11 +329,6 @@ class BoardRules():
 
     # Work here =============================================================================================================
     # Try to optimize
-    def toggle_pause(self):
-        """Toggles state; called by System tag in InputHandler."""
-        self.game_state["running"] = not self.game_state["paused"]
-
-
     # Game checks/states
     def check_global(self):
         ''' Runs checks for global changes '''
@@ -369,132 +341,106 @@ class BoardRules():
         Increments the accumulator based on program delta time.
         Returns True if a game tick should occur.
         """            
-        self.accumulator += dt
-        if self.accumulator >= self.tick_rate:
-            self.accumulator -= self.tick_rate
-            return True
+        self.clock += dt
+        while self.clock >= self.game_state["tick_rate"]:
+            self.run_tick()
+            self.clock -= self.game_state["tick_rate"]
         return False
 
     def paused(self):
         pass
 
-    def running(self):
-        self.process_buffer()
-        self.check_collisions()
-        self.board.refresh_map()
-        self.game_state["time"] += 1   
+    def running(self, dt):
+        self.clock += dt
+        while self.clock >= self.game_state["tick_rate"]:
+            self.check_collisions()
+            self.board.refresh_map()
+            self.clock -= self.game_state["tick_rate"]
+        return False
 
     def run_tick(self):
+        self.check_collisions()
+        self.board.refresh_map()
+        self.clock -= self.game_state["tick_rate"]
+        
         self.state[self.game_state["state"]]()  # Call the function corresponding to the current state
 
 
 class SnakeGame:
-    path_config:str = "PlayerData/Config.json"   # Type hinted because it causes an error when using string operations
-    path_settings:str = "PlayerData/GameSettings"    # Mapping
-
     def __init__(self):
         pygame.init()
-        self.config = self._set_config()
-        self.settings = self._set_settings()     # Might move this later
+        # Window and program setup
 
+        # Data loading
+        self.config = data.get_config()
+        self.settings = data.get_settings()     # Might move this later
+
+        # Window setup
         self.window = pygame.display.set_mode(self.config["window_size"])
         pygame.display.set_caption(self.config["caption"])
-
-        # Callback functions for hud components
-        self.hud_callbacks = {
-            "Menu":{
-                "pause": self.pause_game
-                }
-            }
+        self.clock = pygame.time.Clock
         
         # Player actions regarding the menu/system
-        self.key_mapping = {
-            pygame.QUIT: pygame.quit,
-            pygame.K_SPACE: self.pause_game
+        self.action_map = {
+            "quit": pygame.quit,
+            "pause": self.pauseGame,
+            "restart": self.__init__    # TODO
         }
 
-        self.initialize_objects()
+        # Immediately boots up the game
+        self.initialize_game()
 
         self.states = {
-            "running": self.r.running,
-            "paused": self.r.paused
+            "running": self.running,
+            "paused": self.paused
         }
         
-        # Timing attributes
-        self.tick_speed = 125 # Milliseconds per tick (8 FPS)
-        self.last_tick = pygame.time.get_ticks()
+        
 
 
-    def get_center(self):
+# Some specific use case functions ==============================================================================================================   
+    def centerBoard(self):
+        " This is used for centering the board on the window. "
         return ((self.window.get_width() - self.board.get_width()) // 2, 
                 (self.window.get_height() - self.board.get_height()) // 2)
 
-    # Startup/Initialization ============================================================================================
-    def _set_config(self):
-        return self._read_json(SnakeGame.path_config)
-    
-    def _set_settings(self, settings="/default"):
-        path = SnakeGame.path_settings + settings + ".json"
-        return self._read_json(path)
+    def getActionMap(self):
+        """ This just flattens the action maps for the key handler. """
+        return self.action_map | self.r.action_map
 
-    def _read_json(self, path):
-        try:
-            with open(path, 'r') as f:
-                data = json.load(f)
-                print(data)
-                return data
-        except Exception as e:
-            print(f"Error reading config file: {e}")
-            return {}
-    
-    def _write_json(self, data, path):
-        try:
-            with open(path, 'w') as f:
-                json.dump(data, f, indent=4)
-        except Exception as e:
-            print(f"Error writing config file: {e}")
-
-
-
-    def pause_game(self):
-        self.r.toggle_pause()
+    # This a toggle, currently do not know how to do this properly
+    def pauseGame(self):
+        self.r.game_state["state"] = "paused" if self.r.game_state["state"] == "running" else "running"
         self.hud.pause_sequence()
-        while self.paused:
-            print("Game Paused")
 
-    # Does the thing
-    def resetActionMap(self):
-        """ Sets keybinds for both the HUD and the game rules. """
-        self.hud.setActionMap({
-            "player":self.r.key_mapping, 
-            "user":self.key_mapping
-            })
-
-
-# Game runtime loops
-    def game_tick(self):
-        # TICK LOGIC
-        now = pygame.time.get_ticks()
-        if now - self.last_tick >= self.tick_speed:
-            self.r.run_tick()
-            self.hud.update()
-            self.last_tick = now
-
-
-    def paused(self):
+    def restartGame(self):
         pass
 
-    def running(self):
-        self.game_tick()
+# Game runtime loops
+    def paused(self, dt):
+        """ State: Game is paused, does nothing """
+        # Current the single use pause game function is utilized here
+        pass
+
+    def running(self, dt):
+        """ State: Gameloop is running """
+        # Everything here is bound to the game's tick rate
+        self.r.clock += dt
+        while self.r.clock >= self.r.game_state["tick_rate"]:
+            self.key_handler.evaluate_queue()  # Process buffered inputs
+            self.r.run_tick()
+            self.r.clock -= self.r.game_state["tick_rate"]
 
     def render(self):
         self.window.fill(self.config["window_background"])
-        self.board.draw_board(self.window, self.config["center_position"])
+        self.board.draw_board(self.window, self.config["center_window"])
         self.hud.draw(self.window)
         pygame.display.flip()
 
-    def initialize_objects(self):
+    def initialize_game(self):
         a = self.settings
+
+        # Game object initialization
         self.board = GameBoard(dimensions=a["board_dimensions"], tile_unit=a["board_unit"])
         self.board.set_color(a["board_palette"])
         self.character = Entity.Char(position=(5,5))
@@ -502,29 +448,23 @@ class SnakeGame:
         self.r = BoardRules(self.board)
         self.r.spawn_fruit()
 
-        self.config["center_position"] = self.get_center()
-        self.hud = GameHUD(self.r.game_state, self.config, self.hud_callbacks, self.window.get_size())
-        # TODO: Do update this one when developing further
-        self.hud.setActionMap({
-            "player":self.r.key_mapping, 
-            "user":self.key_mapping})
+        self.key_handler = KeyHandler(data.load_keybinds(), self.getActionMap())
+        self.hud = GameHUD(self.r.game_state, self.config, self.key_handler, self.window.get_size())
+        self.config["center_window"] = self.centerBoard()
 
     def check_input(self):
-        # SINGLE EVENT LOOP
+        """ The GameHUD handles all the inputs, this is here for better distinction of the process. """
         for event in pygame.event.get():
-            # Special cases
-
-            # UI handling
+            if event.type == pygame.KEYDOWN:
+                self.key_handler.handle_keydown(event.key)
             self.hud.handle_events(event)
-
-
-            # Game priority: If UI didn't want it, pass to rules
 
     def run(self):
         while True:
+            dt = self.clock.tick(self.config["refresh_rate"])
             self.check_input()
+            self.states[self.r.game_state["state"]](dt)  # Call the function corresponding to the current state
             self.render()
-            self.states[self.r.game_state["state"]]()  # Call the function corresponding to the current state
 
 if __name__ == "__main__":
     SnakeGame().run()

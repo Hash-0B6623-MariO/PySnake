@@ -5,7 +5,7 @@
   10
  ],
  "font": "Game/Assets/Hud/Font/KiwiSoda.ttf",
- "center_position": 0,
+ "center_window": 0,
  "window_size": [
   800,
   600

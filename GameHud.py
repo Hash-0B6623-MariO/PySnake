@@ -93,19 +93,15 @@ class GameHUD(UIStack):
     A specialized UIStack that manages all in-game HUD elements.
     Inheritance allows it to be treated as a single drawable object.
     """
-    def __init__(self, stat:dict, config:dict, callbacks:dict, window_size:tuple):
+    def __init__(self, stat:dict, config:dict, keyhandler:KeyHandler, window_size:tuple):
         super().__init__()
         self.game_state = stat
         self.config = config
         self.width, self.height = window_size
-        self.callbacks = callbacks["System"]
+        self.key_handler = keyhandler
         
         # Initialize and organize components
-        self.setup_components(callbacks)
-
-    def system_keybinds(self, callbacks:dict):
-        """ Defines the key mapping for system-level inputs. """
-        pass
+        self.setup_components(keyhandler.getActionMap())    # Replaces callback (old system for sharing function references)
 
     def setup_components(self, callbacks:dict):
         """ 
@@ -113,7 +109,7 @@ class GameHUD(UIStack):
         pushes them onto the internal stack.
         """
         self.push(StatDisplay(self.game_state, self.config, self.width))
-        self.push(PauseMenu((self.width, self.height), self.config, callbacks["Menu"]))
+        self.push(PauseMenu((self.width, self.height), self.config, callbacks))
     
     def update(self):
         """ Updates all HUD elements to reflect current game state. """
@@ -121,18 +117,8 @@ class GameHUD(UIStack):
             if hasattr(element, 'update'):
                 element.update()
 
-    def _handle_event(self, event):
-        """ Internal method to handle system events. """
-        # Check for system-level inputs first (e.g., pause)
-        if event.type == pygame.KEYDOWN and event.key in self.callbacks:
-            self.callbacks[event.key]()
-            return True  # Event handled, stop propagation
-        return False
-    
-
     def handle_events(self, event):
-        """ Top-level event handler for the HUD. Delegates to UIStack's method. Prioritizes System inputs. """
-
+        """ Top-level event handler for the HUD. """
         return super().handle_events(event)
     
     # Specific functions for changes in game state

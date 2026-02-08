@@ -5,11 +5,24 @@
         10
     ],
     "font": "Assets/Hud/Font/KiwiSoda.ttf",
-    "center_position": 0,
-"window_size": [
-  800,
-  600
- ],
- "caption": "snek"
- 
+    "center_window": 0,
+    "window_size": [800, 600],
+    "caption": "snek",
+    "refresh_rate":60,
+    "keybinds":{
+        "game":{
+            "movement":{
+                "w":"move_up",
+                "s":"move_down",
+                "a":"move_left",
+                "d":"move_right"
+            }
+        },
+        "user":{
+            "escape":"quit",
+            "space":"pause",
+            "r":"restart"
+        }
+
+    } 
 }
