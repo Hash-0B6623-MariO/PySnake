@@ -267,13 +267,15 @@ class BoardRules():
             -1: self.game_over
         }
 
+
         self.action_map = {
-            "movement":{
-                "move_up": self.change_direction((0, -1)),
-                "move_down": self.change_direction((0, 1)),
-                "move_left": self.change_direction((-1, 0)),
-                "move_right": self.change_direction((1, 0))
-                }
+            # Movement: Done with the assumption that you can only move one tile at a time
+            #   - use of lambda expression to have the direction parameter preset
+                "move_up": lambda : self.change_direction((0, -1)),
+                "move_down": lambda : self.change_direction((0, 1)),
+                "move_left": lambda : self.change_direction((-1, 0)),
+                "move_right": lambda : self.change_direction((1, 0))
+                
         }
 
         # Contains the tick functions for each state
@@ -448,7 +450,7 @@ class SnakeGame:
         self.r = BoardRules(self.board)
         self.r.spawn_fruit()
 
-        self.key_handler = KeyHandler(data.load_keybinds(), self.getActionMap())
+        self.key_handler = KeyHandler(self.getActionMap())
         self.hud = GameHUD(self.r.game_state, self.config, self.key_handler, self.window.get_size())
         self.config["center_window"] = self.centerBoard()
 

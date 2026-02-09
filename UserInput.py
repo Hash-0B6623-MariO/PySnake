@@ -32,17 +32,9 @@ class FileHandler:
 
     @classmethod
     def load_keybinds(cls):
-        """ Loads keybinds from a JSON file and returns a structured dict. """
-        config = cls.get_config()
-        keybinds = {}
-        for level, group in config["keybinds"].items():
-            current_group = {} 
-            print(group)
-            for tag, mapping in group.items():
-                current_group[tag] = {getattr(pygame, key): action for key, action in mapping.items()}
-            keybinds[level] = current_group
-        return keybinds
-    
+        """ Loads keybinds from config. """
+        return cls.get_config()["keybinds"]
+
     @classmethod
     def get_config(cls):
         return cls.read_json(cls.path_config)
@@ -54,12 +46,15 @@ class FileHandler:
 
 
 
+# Note: Messy but structure for mapping is 
+# level ("user", "game", etc.) -> tag ("movement", "action", etc.) -> key-action mapping
+#   * Tag is mainly used for the game input groupings
 class KeyHandler:
     ''' Handles game runtime inputs '''
-    def __init__(self, keybinds: dict, action_map: dict):
-        self._key_mapping = keybinds 
+    def __init__(self, action_map: dict):
+        self.setKeyMapping(FileHandler.load_keybinds(), action_map)   # Maps tags to key-action mappings
         self._action_mapping = action_map     # References the functions to string counterparts
-        self.action_queue = {key: [] for key in self._action_mapping.keys()}  # Map of key to list of actions
+        self.action_queue = {tag: [] for tag in self._key_mapping["game"].keys()}  # Action queue for game inputs
 
         # Strategy Dispatch Table: Map tags to internal logic methods
         self._evaluation_strategies = {
@@ -67,11 +62,29 @@ class KeyHandler:
             "action": self._eval_standard
         }
 
-    def getActionMap(self):
-        return self._action_mapping
+    def setKeyMapping(self, keybinds: dict, action_map: dict):
+        """ Takes that raw keybind structure and produces a mapping of tags to key-action mappings. """
+        keymap = {}
+        # Game
+        level, group = keybinds["game"].items()
+        current_group = {}
+        for tag, mapping in group.items():
+            print(mapping)
+            current_group[tag] = {pygame.key.key_code(key): action_map[action] for key, action in mapping.items()}
+        keymap[level] = current_group
 
-    def setKeyMapping(self, keybinds: dict):
-        self._key_mapping = keybinds 
+        # User
+        keymap["user"] = {pygame.key.key_code(key): action_map[action] for key, action in keybinds["user"]}
+
+
+
+
+
+        self._key_mapping = keymap
+
+    def getActionMap(self):
+        """ Returns the action map for use, atm mainly on the GameHUD callbacks. """
+        return self._action_mapping
 
     def evaluate_queue(self):
         """ Entry point for the recursive evaluation loop. """
@@ -82,8 +95,8 @@ class KeyHandler:
                 queue.clear()
 
     def find_key(self, key):
-        """Utility to find the tag and action for a given key."""
-        for tag, mapping in self._key_mapping.items():
+        """ Utility to find the tag and action for a given key for the game inputs."""
+        for tag, mapping in self._key_mapping["game"].items():
             if key in mapping.keys():
                 return {"tag":tag,"action":mapping[key]}
         return False
@@ -91,8 +104,9 @@ class KeyHandler:
     def handle_keydown(self, key):
         """ Buffers the key. """
         if key in self._key_mapping["user"].keys():
-            self._action_mapping[key]()
+            self._key_mapping["user"][key]()
         else:
+            # This branch handles game inputs
             input = self.find_key(key)
             if input:
                 self.action_queue[input["tag"]].append(input["action"])
