@@ -92,9 +92,11 @@ class Collectibles():
     class Fruit(Tile):
         # Tier refers to point/length multiplier
         # Value refers to progrssion
-        def __init__(self, position=(0, 0), tier=1, value=1, file_dir=None):
+        # Quality refers to the rot timer
+        def __init__(self, position=(0, 0), quality=1, tier=1, value=1, file_dir=None):
             self.tier = tier
             self.value = value
+            self.quality = quality
             super().__init__(position=position, personality=2, color=(255, 0, 0), file_dir=file_dir)
     
     # Do change this, maybe instead pass the entire map
@@ -182,6 +184,11 @@ class GameBoard(pygame.Surface):
                 curr = getattr(curr, 'back', None)
         return occupied
     
+    def getClearPercentage(self):
+        total_tiles = self.bounds[0] * self.bounds[1]
+        occupied_tiles = len(self.get_occupied())
+        return (total_tiles - occupied_tiles) / total_tiles
+
     def centerBoard(self):
         w, h = self.bounds
         return ((w-1)//2, (h-1)//2)
@@ -244,24 +251,30 @@ class GameBoard(pygame.Surface):
 #   Use the coordinate system of the board for movement and collision detection
 class BoardRules():
     ''' Central hub for all the game logic and current state '''
-    def __init__(self, board: GameBoard):
+    def __init__(self, board: GameBoard,):
         self.board = board
         self.character = self.find_character()
+        # TODO: Would like to have this be saved in a file under default_settings as well
+        # But implementation could be best done by overhauling how data is saved and loaded
+        #    i.e. Having a python file contain the dictionaries and functions for calculating certain values
         self.game_state = {
-            "state": True,
+            "state": "running",
             "score": 0,
             "multiplier": 1.0,
             "fruit_count": 0,
             
             # Game loop
             "tick_rate": 8, # Game speed
+            "tick_base": .5, # Base tick speed modifier
+            # "tick_speed": lambda: (1000/self.game_state["tick_rate"])*(self.game_state["tick_base"] + self.board.getClearPercentage()), # Milliseconds per tick, calculated from tick rate
+            "tick_speed": lambda: (1000/self.game_state["tick_rate"])*(1 + self.board.getClearPercentage() ** 10),
             "ticks": pygame.time.get_ticks,       
             "time": lambda:pygame.time.get_ticks()/1000,   
         }
         self.clock = 0      # Helper variable for calculating delta time
 
         self.on_collide = {
-            0: self.move_character,
+            0: self.is_empty,
             1: self.game_over, 
             2: self.collide_fruit,
             -1: self.game_over
@@ -276,13 +289,6 @@ class BoardRules():
                 "move_left": lambda : self.change_direction((-1, 0)),
                 "move_right": lambda : self.change_direction((1, 0))
                 
-        }
-
-        # Contains the tick functions for each state
-        self.state = {
-            "paused" : self.paused,
-            "running" : self.running,
-            "minnesota": False,
         }
 
 # Runtime functions 
@@ -301,9 +307,9 @@ class BoardRules():
 
 # Collision logic
     def game_over(self, tile=None):
+        """ Tile: 9 or -1 (boundary). """
         print(f"Game Over! Final Score: {self.game_state["score"]}")
-        pygame.quit()
-        exit()
+        self.game_state["state"] = "loss"
 
     def check_collisions(self):
         target_pos = self.character.get_front()
@@ -315,14 +321,21 @@ class BoardRules():
             self.on_collide[lookup](front_tile)
 
     def collide_fruit(self, tile: Collectibles.Fruit):
+        """ Tile: 2. """
         self.character.grow_into(tile.position)
         self.game_state["score"] += (tile.tier * 10)
+        self.game_state["multiplier"] += (tile.quality * 10)
+
+
+
         self.game_state["fruit_count"] += 1
         self.board.clear_tile(tile)
         self.spawn_fruit()
 
-    def move_character(self, tile=None):
+    def is_empty(self, tile=None):
+        ''' Tile: 0. Basic tile function. '''
         self.character.move()
+        self.decayMultiplier()
     
     def spawn_fruit(self):
         available = self.board.get_available()
@@ -332,6 +345,13 @@ class BoardRules():
     # Work here =============================================================================================================
     # Try to optimize
     # Game checks/states
+    def decayMultiplier(self, n=.2):
+        """ Multiplier decay over time, adds a bit of urgency to the game. """
+        # This is a simple linear decay, could be made more complex with different decay rates or thresholds
+        self.game_state["multiplier"] = 1 + (self.game_state["multiplier"]/n)
+        yield n * 2
+
+
     def check_global(self):
         ''' Runs checks for global changes '''
         if self.game_state["fruit_count"] > 10:
@@ -344,28 +364,15 @@ class BoardRules():
         Returns True if a game tick should occur.
         """            
         self.clock += dt
-        while self.clock >= self.game_state["tick_rate"]:
+        while self.clock >= self.game_state["tick_speed"]():
             self.run_tick()
-            self.clock -= self.game_state["tick_rate"]
-        return False
-
-    def paused(self):
-        pass
-
-    def running(self, dt):
-        self.clock += dt
-        while self.clock >= self.game_state["tick_rate"]:
-            self.check_collisions()
-            self.board.refresh_map()
-            self.clock -= self.game_state["tick_rate"]
+            self.clock -= self.game_state["tick_speed"]()
         return False
 
     def run_tick(self):
         self.check_collisions()
         self.board.refresh_map()
-        self.clock -= self.game_state["tick_rate"]
         
-        self.state[self.game_state["state"]]()  # Call the function corresponding to the current state
 
 
 class SnakeGame:
@@ -380,24 +387,25 @@ class SnakeGame:
         # Window setup
         self.window = pygame.display.set_mode(self.config["window_size"])
         pygame.display.set_caption(self.config["caption"])
-        self.clock = pygame.time.Clock
+        self.clock = pygame.time.Clock()
         
         # Player actions regarding the menu/system
         self.action_map = {
             "quit": pygame.quit,
             "pause": self.pauseGame,
-            "restart": self.__init__    # TODO
+            "restart": self.restartGame  
+        }
+
+        # Contains the tick functions for each state
+        self.state = {
+            "paused" : self.paused,
+            "running" : self.running,
+            "loss" : self.loss,
+            "minnesota": False,
         }
 
         # Immediately boots up the game
         self.initialize_game()
-
-        self.states = {
-            "running": self.running,
-            "paused": self.paused
-        }
-        
-        
 
 
 # Some specific use case functions ==============================================================================================================   
@@ -416,22 +424,26 @@ class SnakeGame:
         self.hud.pause_sequence()
 
     def restartGame(self):
-        pass
-
-# Game runtime loops
+        """ Restarts the entire program. """
+        self.__init__()
+        
+# Game states ==============================================================================================================   
     def paused(self, dt):
-        """ State: Game is paused, does nothing """
-        # Current the single use pause game function is utilized here
+        """ State: Game is paused, only accepts menu inputs. """
         pass
 
     def running(self, dt):
         """ State: Gameloop is running """
         # Everything here is bound to the game's tick rate
         self.r.clock += dt
-        while self.r.clock >= self.r.game_state["tick_rate"]:
+        while self.r.clock >= self.r.game_state["tick_speed"]():
             self.key_handler.evaluate_queue()  # Process buffered inputs
             self.r.run_tick()
-            self.r.clock -= self.r.game_state["tick_rate"]
+            self.r.clock -= self.r.game_state["tick_speed"]()
+
+    def loss(self, dt):
+        """ State: Game over, only accepts menu inputs. """
+        self.restartGame()
 
     def render(self):
         self.window.fill(self.config["window_background"])
@@ -457,15 +469,23 @@ class SnakeGame:
     def check_input(self):
         """ The GameHUD handles all the inputs, this is here for better distinction of the process. """
         for event in pygame.event.get():
+
+            print(event)
             if event.type == pygame.KEYDOWN:
                 self.key_handler.handle_keydown(event.key)
             self.hud.handle_events(event)
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
 
     def run(self):
         while True:
-            dt = self.clock.tick(self.config["refresh_rate"])
+            dt = self.clock.tick(self.config["refresh_rate"]) # Delta time in seconds, normalized to tick rate
             self.check_input()
-            self.states[self.r.game_state["state"]](dt)  # Call the function corresponding to the current state
+            self.state[self.r.game_state["state"]](dt) 
+
+            # TODO: Keep in mind when scaling
+            self.hud.update() # Update HUD elements
             self.render()
 
 if __name__ == "__main__":

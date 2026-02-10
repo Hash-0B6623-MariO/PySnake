@@ -49,6 +49,7 @@ class FileHandler:
 # Note: Messy but structure for mapping is 
 # level ("user", "game", etc.) -> tag ("movement", "action", etc.) -> key-action mapping
 #   * Tag is mainly used for the game input groupings
+# Note that this project does not use multithreading, which explains delays
 class KeyHandler:
     ''' Handles game runtime inputs '''
     def __init__(self, action_map: dict):
@@ -66,20 +67,11 @@ class KeyHandler:
         """ Takes that raw keybind structure and produces a mapping of tags to key-action mappings. """
         keymap = {}
         # Game
-        level, group = keybinds["game"].items()
-        current_group = {}
-        for tag, mapping in group.items():
-            print(mapping)
-            current_group[tag] = {pygame.key.key_code(key): action_map[action] for key, action in mapping.items()}
-        keymap[level] = current_group
-
-        # User
-        keymap["user"] = {pygame.key.key_code(key): action_map[action] for key, action in keybinds["user"]}
-
-
-
-
-
+        for level, group in keybinds.items():
+            current_group = {}
+            for tag, mapping in group.items():
+                current_group[tag] = {pygame.key.key_code(key): action_map[action] for key, action in mapping.items()}
+            keymap[level] = current_group
         self._key_mapping = keymap
 
     def getActionMap(self):
@@ -114,6 +106,7 @@ class KeyHandler:
     # --- Strategy Implementations ---
     def _eval_movement(self, queue):
         """Movement rule: Only execute the latest movement found in the tick."""
+        # Would like to allow for double queuing, something like a 100ms wait, where the 2nd input is queued but not executed until the next tick.
         try:
             check = queue.pop(0)()  # Check if the action is valid (e.g., not a 180 turn)
             return check if check else self._eval_movement(queue)  # Execute the action

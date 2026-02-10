@@ -31,7 +31,7 @@ class StatDisplay(UIContainer):
         )
 
         self.multiplier_box = DialogueBox(
-            text=f"MULTIPLIER: x{self.game_state["multiplier"]:.3f}",
+            text=f"MULTIPLIER: x{round(self.game_state["multiplier"], 4)}",
             bounds=(200, 40),
             color=(40, 40, 40),
             text_color=(255, 255, 255),
@@ -46,7 +46,7 @@ class StatDisplay(UIContainer):
     def update(self):
         """ Syncs the display with the current score from rules. """
         self.score_box.update_text(f"SCORE: {self.game_state["score"]}")
-        self.multiplier_box.update_text(f"MULTIPLIER: x{self.game_state["multiplier"]:.3f}")
+        self.multiplier_box.update_text(f"MULTIPLIER: x{round(self.game_state["multiplier"], 4)}")
 
 class PauseMenu(UIContainer):
     ''' A simple pause menu overlay '''
@@ -93,9 +93,9 @@ class GameHUD(UIStack):
     A specialized UIStack that manages all in-game HUD elements.
     Inheritance allows it to be treated as a single drawable object.
     """
-    def __init__(self, stat:dict, config:dict, keyhandler:KeyHandler, window_size:tuple):
+    def __init__(self, game_state:dict, config:dict, keyhandler:KeyHandler, window_size:tuple):
         super().__init__()
-        self.game_state = stat
+        self.game_state = game_state
         self.config = config
         self.width, self.height = window_size
         self.key_handler = keyhandler

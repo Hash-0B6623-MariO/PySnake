@@ -19,9 +19,11 @@
             }
         },
         "user":{
-            "escape":"quit",
-            "space":"pause",
-            "r":"restart"
+            "active":{
+                "escape":"quit",
+                "space":"pause",
+                "r":"restart"
+            }
         }
 
     } 
