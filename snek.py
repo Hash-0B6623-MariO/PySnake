@@ -8,36 +8,36 @@ import json
 import pygame
 import random
 
-
-
 # 12/08/25 - Take two, now implements basic tile logic and state storage
+# 2/14/26 - My God, it works
 # Stuff to add:
-# - Centralize input assignment
 # - Handling palettes and sprites
-# - Optimization for movement, constant checks for moving a character
-#       * Currently nested to one check but could be done with dicts
 # - Update spawner
 # Augur
 
-# Prio: Final struct for board class
-
 # Note: 
-# - config currently is for aesthetics only
-# - Funky interaction with how inputs are picked up, 
-#   needs to be centralized since wherever the mouse is at 
-#   chooses where the input goes to
+# Quick Overview of the structure:
+# - SnakeGame: Central class, handles rendering, input and state management.
+#   - BoardRules: Central hub for all the game logic and state, includes rules, win conditions, collisions and controls.
+#   - GameBoard: Handles the mapping, tile management and drawing.
+#   
+#   The rest are disconnected from the main loop    
+#   - Tile: Base classes for board objects. 
+#   - Collectibles: Currently just fruits, but could be expanded for more complex items.
+#   - Entity: Proto class for building more complex tiles, currently just the snake segments.
 
 class Tile:
     # Each id corresponds to a unique tile type, the rest of the code refers to types as ids
-    # This is hardcoded. Reference for checking
-    # This now acts as the sort of constructors for tile objects
     # Currently not really needed, but could be useful for building more complex tiles later
-    tile_types = {}
+    tile_lut = {
+        0: "empty", 
+        1: "tail",
+        2: "fruit",
+        9: "head"
+    }
 
-    def __init__(self, position=(0,0), personality=None, color=(255, 0, 0), file_dir=None):
-        self.personality = len(Tile.tile_types) + 1 if personality is None else personality
-        Tile.tile_types[self.personality] = self
-
+    def __init__(self, personality:int, position=(0,0), color=(255, 0, 0), file_dir=None):
+        self.personality = personality
         self.sprite = self.replace_sprite(file_dir) if file_dir else None
         # Alternate when not using sprites
         self.color = color
@@ -73,7 +73,7 @@ class Tile:
     def __index__(self):
         return self.personality
     
-    # An accident happened here
+    # An accident happened here -- deprecated
     def __int__(self):
         return self.personality
 
@@ -84,15 +84,9 @@ class Tile:
             return self.personality == other.personality
         return False
 
-# Spawner for this
 class Collectibles():
-    # Thinking about developing (or borrowing) an algorithm for making fruit spawns always be possible to eat
-    # Could also have an in-game factor that determines how "possible" a fruit spawn should be
-    #       Look up Flood Fill or BFS (Breadth-First Search) algorithm
+    # Thinking about developing (or borrowing) an algorithm for making fruit spawns have an in-game factor that determines how "easy" a fruit spawn should be
     class Fruit(Tile):
-        # Tier refers to point/length multiplier
-        # Value refers to progrssion
-        # Quality refers to the rot timer
         def __init__(self, position=(0, 0), quality=1, tier=1, value=1, file_dir=None):
             self.tier = tier
             self.value = value
@@ -138,7 +132,7 @@ class Entity:
         def get_front(self):
             return (self.position[0] + self.direction[0], self.position[1] + self.direction[1])
 
-        def change_direction(self, direction):
+        def changeDirection(self, direction):
             self.direction = direction
 
         def draw(self, surface:pygame.Surface, scale=1):
@@ -148,33 +142,35 @@ class Entity:
         
 
 class GameBoard(pygame.Surface):
-    def __init__(self, dimensions:list, tile_unit:int):
-        super().__init__(tuple(x*tile_unit for x in dimensions))
-        self.tile_unit = tile_unit
-        self.bounds = dimensions
-        self.map = self.create_map()
+    def __init__(self, attributes:dict):
+        self.setAttributes(attributes)
+        self.map = self.createMap()
         self.instances = []    # Tracks all instances tiles on the board.
 
-        # Store tile palettes here
-        self.__color = ((30, 30, 30), (45, 45, 45)) # Changed to default darks for visibility
-
-    def get_color(self):
-            return self.__color
-
-    def set_color(self, value:tuple):
-            self.__color = value
+    # Internal Data +---------------------------------------------------
+    def setAttributes(self, a:dict):
+        """ Sets all the attributes, manual for type safety. """
+        self.tile_unit = a["tile_unit"]
+        self.bounds = a["dimensions"]
+        self.color = a["board_palette"]
+        super().__init__(tuple(x*self.tile_unit for x in self.bounds))
+        
+    def getAttributes(self):
+        """ Return attribute as a dict. """
+        return {key: getattr(self, key) for key in self.__dict__}
 
     # Mapping +---------------------------------------------------
-    def create_map(self):
+    def createMap(self):
+        """ Currently: just builds and empty map. """
         w, h = self.bounds
         return [[0 for _ in range(w)] for _ in range(h)]
     
-    def get_available(self):
+    def getAvailable(self):
         w, h = self.bounds
-        occupied = self.get_occupied()
+        occupied = self.getOccupied()
         return [(x, y) for x in range(w) for y in range(h) if (x, y) not in occupied]
 
-    def get_occupied(self):
+    def getOccupied(self):
         # We need to flatten the linked snake body to get all occupied coordinates
         occupied = []
         for tile in self.instances:
@@ -186,55 +182,38 @@ class GameBoard(pygame.Surface):
     
     def getClearPercentage(self):
         total_tiles = self.bounds[0] * self.bounds[1]
-        occupied_tiles = len(self.get_occupied())
+        occupied_tiles = len(self.getOccupied())
         return (total_tiles - occupied_tiles) / total_tiles
 
     def centerBoard(self):
+        """ Returns the coordinates for the center tile of the board. """
         w, h = self.bounds
         return ((w-1)//2, (h-1)//2)
 
-    # Drawing Functions ==============================================================================================================
-    # This draws the background tiles checkered style
-    def draw_bg(self, palette):
-        for y in range(self.bounds[1]):
-            for x in range(self.bounds[0]):
-                pygame.draw.rect(self, palette[(x+y) % 2], ((x*self.tile_unit, y*self.tile_unit), (self.tile_unit,)*2))
-
-    # Could be better optimized
-    def draw_tiles(self):
-        for tile in self.instances:
-            tile.draw(self, self.tile_unit)
-
-    def draw_board(self, window, position:tuple):
-        # window.fill((0, 0, 0)) # Moved to SnakeGame loop
-        self.draw_bg(self.get_color())
-        self.draw_tiles()
-        window.blit(self, position)
-
-    # Board Data Functions ==============================================================================================================
-    def add_tile(self, tile:Tile):
+    # Map Data +---------------------------------------------------
+    def addTile(self, tile:Tile):
         self.instances.append(tile)
-        self.refresh_map()
+        self.refreshMap()
 
-    def clear_tile(self, tile):
+    def clearTile(self, tile):
         if tile in self.instances:
             self.instances.remove(tile)
-        self.refresh_map()
+        self.refreshMap()
 
-    # Searches for a tile with their position
-    def get_tile(self, position:tuple):
+    def getTile(self, position:tuple):
+        """ Searches for a tile with their position. """
         x, y = position
         if 0 <= x < self.bounds[0] and 0 <= y < self.bounds[1]:
             return self.map[y][x] # Accessing by Row (y) then Col (x)
         return -1 # Boundary flag
         
-    # Searches for all tiles of a certain type on the board, returns position
-    def search_board(self, personality):
+    def searchBoard(self, personality):
+        """ Searches for all tiles of a certain type on the board, returns positions as a list. """
         return [tile for tile in self.instances if tile.personality == personality]
 
-    # Refreshes the map when positions are changed on the objects themselves
-    def refresh_map(self):
-        self.map = self.create_map()
+    def refreshMap(self):
+        """ Refreshes the map when positions are changed on the objects themselves. """
+        self.map = self.createMap()
         for tile in self.instances:
             curr = tile
             while curr: # Traverse snake body
@@ -243,34 +222,34 @@ class GameBoard(pygame.Surface):
                     self.map[ty][tx] = curr
                 curr = getattr(curr, 'back', None)
 
-# Game Logic built here ==============================================================================================================
-# Includes rules, win conditions, collisions and controls
-# Notes: 
-#   Attribute syntax in SnakeGame, this just isolates the logic from the rest of the code 
-#   Do player controls in one unified function
-#   Use the coordinate system of the board for movement and collision detection
+    # Drawing  +---------------------------------------------------
+    def drawBg(self, palette):
+        """ Draws the background tiles checkered. """
+        for y in range(self.bounds[1]):
+            for x in range(self.bounds[0]):
+                pygame.draw.rect(self, palette[(x+y) % 2], ((x*self.tile_unit, y*self.tile_unit), (self.tile_unit,)*2))
+
+    def drawTiles(self):
+        for tile in self.instances:
+            tile.draw(self, self.tile_unit)
+
+    def drawBoard(self, window, position:tuple):
+        # window.fill((0, 0, 0)) # Moved to SnakeGame loop
+        self.drawBg(self.color)
+        self.drawTiles()
+        window.blit(self, position)
+
+
 class BoardRules():
-    ''' Central hub for all the game logic and current state '''
-    def __init__(self, board: GameBoard,):
+    ''' 
+        Central hub for all the game logic and state
+        Includes rules, win conditions, collisions and controls
+    '''
+    def __init__(self, board: GameBoard, status:dict):
         self.board = board
-        self.character = self.find_character()
-        # TODO: Would like to have this be saved in a file under default_settings as well
-        # But implementation could be best done by overhauling how data is saved and loaded
-        #    i.e. Having a python file contain the dictionaries and functions for calculating certain values
-        self.game_state = {
-            "state": "running",
-            "score": 0,
-            "multiplier": 1.0,
-            "fruit_count": 0,
-            
-            # Game loop
-            "tick_rate": 8, # Game speed
-            "tick_base": .5, # Base tick speed modifier
-            # "tick_speed": lambda: (1000/self.game_state["tick_rate"])*(self.game_state["tick_base"] + self.board.getClearPercentage()), # Milliseconds per tick, calculated from tick rate
-            "tick_speed": lambda: (1000/self.game_state["tick_rate"])*(1 + self.board.getClearPercentage() ** 10),
-            "ticks": pygame.time.get_ticks,       
-            "time": lambda:pygame.time.get_ticks()/1000,   
-        }
+        self.character = self.findCharacter()
+        self.game_status = status
+        self.game_status["tick_speed"] = self.getTickSpeed()
         self.clock = 0      # Helper variable for calculating delta time
 
         self.on_collide = {
@@ -284,79 +263,76 @@ class BoardRules():
         self.action_map = {
             # Movement: Done with the assumption that you can only move one tile at a time
             #   - use of lambda expression to have the direction parameter preset
-                "move_up": lambda : self.change_direction((0, -1)),
-                "move_down": lambda : self.change_direction((0, 1)),
-                "move_left": lambda : self.change_direction((-1, 0)),
-                "move_right": lambda : self.change_direction((1, 0))
+                "move_up": lambda : self.changeDirection((0, -1)),
+                "move_down": lambda : self.changeDirection((0, 1)),
+                "move_left": lambda : self.changeDirection((-1, 0)),
+                "move_right": lambda : self.changeDirection((1, 0))
                 
         }
 
-# Runtime functions 
-    def change_direction(self, new_dir):
-        if not self.is_illegal_turn(new_dir):
-            self.character.change_direction(new_dir)
+# Onetime Events +---------------------------------------------------
+    # Can be expanded for creating dynamic map progresion every loop
+    def startBoard(self):
+        self.character = Entity.Char(position=self.board.centerBoard())
+        self.board.addTile(self.character)
+        self.spawn_fruit()
 
-    def is_illegal_turn(self, new_dir):
+# Character Logic/Functions +---------------------------------------------------
+    def changeDirection(self, new_dir):
+        if not self.isIllegalTurn(new_dir):
+            self.character.changeDirection(new_dir)
+
+    def isIllegalTurn(self, new_dir):
+        """ Prevents 180s. """
         opposite = (new_dir[0] * -1, new_dir[1] * -1)
         return opposite == self.character.last_moved_direction
 
-    def find_character(self) -> Entity.Char:
-        return self.board.search_board(9)[0]
+    def findCharacter(self) -> Entity.Char:
+        return self.board.searchBoard(9)[0]
 
+# Board Data (or anything related to sending/requesting data to/from the board directly.)
+# Tried to avoid direct interaction with the board inside of this class, but this works
+    def spawn_fruit(self):
+        available = self.board.getAvailable()
+        if available:
+            self.board.addTile(Collectibles.fruit_rand(available))
 
-
-# Collision logic
+# Collision Logic +---------------------------------------------------
     def game_over(self, tile=None):
         """ Tile: 9 or -1 (boundary). """
-        print(f"Game Over! Final Score: {self.game_state["score"]}")
-        self.game_state["state"] = "loss"
-
-    def check_collisions(self):
-        target_pos = self.character.get_front()
-        front_tile = self.board.get_tile(target_pos) 
-        # Check if it's a Tile object or an integer (0 or -1)
-        lookup = front_tile.personality if hasattr(front_tile, 'personality') else front_tile
-        
-        if lookup in self.on_collide:
-            self.on_collide[lookup](front_tile)
-
-    def collide_fruit(self, tile: Collectibles.Fruit):
-        """ Tile: 2. """
-        self.character.grow_into(tile.position)
-        self.game_state["score"] += (tile.tier * 10)
-        self.game_state["multiplier"] += (tile.quality * 10)
-
-
-
-        self.game_state["fruit_count"] += 1
-        self.board.clear_tile(tile)
-        self.spawn_fruit()
+        print(f"Game Over! Final Score: {self.game_status["score"]}")
+        self.game_status["state"] = "loss"
 
     def is_empty(self, tile=None):
         ''' Tile: 0. Basic tile function. '''
         self.character.move()
-        self.decayMultiplier()
-    
-    def spawn_fruit(self):
-        available = self.board.get_available()
-        if available:
-            self.board.add_tile(Collectibles.fruit_rand(available))
+        self.multDecay()
 
-    # Work here =============================================================================================================
-    # Try to optimize
-    # Game checks/states
-    def decayMultiplier(self, n=.2):
+    def collide_fruit(self, tile: Collectibles.Fruit):
+        """ Tile: 2. """
+        self.character.grow_into(tile.position)
+        self.game_status["score"] += (tile.tier * 10)
+        self.game_status["multiplier"] += (tile.quality * 10)
+
+
+
+        self.game_status["fruit_count"] += 1
+        self.board.clearTile(tile)
+        self.spawn_fruit()
+    
+
+# Dynamic Data  +---------------------------------------------------
+    def getTickSpeed(self):
+        """ Returns the current tick speed, calculated from the base and the clear percentage. """
+        # Old tick logic
+        # (1000/self.game_status["tick_rate"])*(self.game_status["tick_base"] + self.board.getClearPercentage())
+        return (1000/self.game_status["tick_rate"])*(1 + self.board.getClearPercentage() ** 10)
+
+    def multDecay(self, n=.2):
         """ Multiplier decay over time, adds a bit of urgency to the game. """
         # This is a simple linear decay, could be made more complex with different decay rates or thresholds
-        self.game_state["multiplier"] = 1 + (self.game_state["multiplier"]/n)
+        self.game_status["multiplier"] = 1 + (self.game_status["multiplier"]/n)
         yield n * 2
-
-
-    def check_global(self):
-        ''' Runs checks for global changes '''
-        if self.game_state["fruit_count"] > 10:
-            self.game_state["multiplier"] += 1.0
-            self.game_state["fruit_count"] = 0
 
     def update_clock(self, dt):
         """
@@ -364,25 +340,34 @@ class BoardRules():
         Returns True if a game tick should occur.
         """            
         self.clock += dt
-        while self.clock >= self.game_state["tick_speed"]():
-            self.run_tick()
-            self.clock -= self.game_state["tick_speed"]()
+        while self.clock >= self.game_status["tick_speed"]():
+            self.runTick()
+            self.clock -= self.game_status["tick_speed"]()
         return False
 
-    def run_tick(self):
-        self.check_collisions()
-        self.board.refresh_map()
+# Game Checks/Tick Loop +---------------------------------------------------
+    def checkCollisions(self):
+        target_pos = self.character.get_front()
+        front_tile = self.board.getTile(target_pos) 
+        # Check if it's a Tile object or an integer (0 or -1)
+        lookup = front_tile.personality if hasattr(front_tile, 'personality') else front_tile
         
+        if lookup in self.on_collide:
+            self.on_collide[lookup](front_tile)
 
+    def runTick(self):
+        self.checkCollisions()
+        self.board.refreshMap()
 
+# Central class ==============================================================================================================   
 class SnakeGame:
+    """ Central class for the game, handles rendering, input and state management. Calls BoardRules for game logic and data. """
     def __init__(self):
         pygame.init()
         # Window and program setup
 
         # Data loading
         self.config = data.get_config()
-        self.settings = data.get_settings()     # Might move this later
 
         # Window setup
         self.window = pygame.display.set_mode(self.config["window_size"])
@@ -405,10 +390,9 @@ class SnakeGame:
         }
 
         # Immediately boots up the game
-        self.initialize_game()
+        self.initializeGame()
 
-
-# Some specific use case functions ==============================================================================================================   
+# Some specific use case functions 
     def centerBoard(self):
         " This is used for centering the board on the window. "
         return ((self.window.get_width() - self.board.get_width()) // 2, 
@@ -420,14 +404,24 @@ class SnakeGame:
 
     # This a toggle, currently do not know how to do this properly
     def pauseGame(self):
-        self.r.game_state["state"] = "paused" if self.r.game_state["state"] == "running" else "running"
+        self.r.game_status["state"] = "paused" if self.r.game_status["state"] == "running" else "running"
         self.hud.pause_sequence()
 
     def restartGame(self):
         """ Restarts the entire program. """
         self.__init__()
-        
-# Game states ==============================================================================================================   
+
+# Game initialization +---------------------------------------------------
+    def initializeBoard(self, board_properties=data.getBoardDefault(), status=data.getGameDefault()):
+        self.board = GameBoard(board_properties)
+        self.r = BoardRules(self.board, status)
+
+    def initializeGame(self):
+        self.key_handler = KeyHandler(self.getActionMap())
+        self.hud = GameHUD(self.r.game_status, self.config, self.key_handler, self.window.get_size())
+        self.config["center_window"] = self.centerBoard()
+
+# Game states +---------------------------------------------------
     def paused(self, dt):
         """ State: Game is paused, only accepts menu inputs. """
         pass
@@ -436,35 +430,21 @@ class SnakeGame:
         """ State: Gameloop is running """
         # Everything here is bound to the game's tick rate
         self.r.clock += dt
-        while self.r.clock >= self.r.game_state["tick_speed"]():
+        while self.r.clock >= self.r.game_status["tick_speed"]():
             self.key_handler.evaluate_queue()  # Process buffered inputs
-            self.r.run_tick()
-            self.r.clock -= self.r.game_state["tick_speed"]()
+            self.r.runTick()
+            self.r.clock -= self.r.game_status["tick_speed"]()
 
     def loss(self, dt):
         """ State: Game over, only accepts menu inputs. """
         self.restartGame()
 
+# Render/Runtime Loop +---------------------------------------------------
     def render(self):
         self.window.fill(self.config["window_background"])
-        self.board.draw_board(self.window, self.config["center_window"])
+        self.board.drawBoard(self.window, self.config["center_window"])
         self.hud.draw(self.window)
         pygame.display.flip()
-
-    def initialize_game(self):
-        a = self.settings
-
-        # Game object initialization
-        self.board = GameBoard(dimensions=a["board_dimensions"], tile_unit=a["board_unit"])
-        self.board.set_color(a["board_palette"])
-        self.character = Entity.Char(position=(5,5))
-        self.board.add_tile(self.character)
-        self.r = BoardRules(self.board)
-        self.r.spawn_fruit()
-
-        self.key_handler = KeyHandler(self.getActionMap())
-        self.hud = GameHUD(self.r.game_state, self.config, self.key_handler, self.window.get_size())
-        self.config["center_window"] = self.centerBoard()
 
     def check_input(self):
         """ The GameHUD handles all the inputs, this is here for better distinction of the process. """
@@ -482,7 +462,7 @@ class SnakeGame:
         while True:
             dt = self.clock.tick(self.config["refresh_rate"]) # Delta time in seconds, normalized to tick rate
             self.check_input()
-            self.state[self.r.game_state["state"]](dt) 
+            self.state[self.r.game_status["state"]](dt) 
 
             # TODO: Keep in mind when scaling
             self.hud.update() # Update HUD elements

@@ -40,9 +40,14 @@ class FileHandler:
         return cls.read_json(cls.path_config)
     
     @classmethod
-    def get_settings(cls, settings="/default"):
+    def getBoardDefault(cls, settings="/default"):
         path = cls.path_settings + settings + ".json"
-        return cls.read_json(path)
+        return cls.read_json(path)["board"]
+
+    @classmethod
+    def getGameDefault(cls, settings="/default"):
+        path = cls.path_settings + settings + ".json"
+        return cls.read_json(path)["settings"]
 
 
 

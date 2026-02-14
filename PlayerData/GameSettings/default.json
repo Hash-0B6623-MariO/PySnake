@@ -1,5 +1,15 @@
 {
-            "board_dimensions": [15, 15],
-            "board_unit": 30,
-            "board_palette": [[40, 40, 40], [50, 50, 50]]
+            "board":{
+                "board_dimensions": [15, 15],
+                "board_unit": 30,
+                "board_palette": [[40, 40, 40], [50, 50, 50]]
+            },
+            "settings":{
+                "state": "running",
+                "score": 0,
+                "multiplier": 1.0,
+                "fruit_count": 0,
+                "tick_rate": 8, 
+                "tick_base": 0.5
+            }
         }
