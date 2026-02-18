@@ -142,17 +142,17 @@ class Entity:
         
 
 class GameBoard(pygame.Surface):
-    def __init__(self, attributes:dict):
-        self.setAttributes(attributes)
+    def __init__(self, attributes:dict, config:dict):
+        self.setAttributes(attributes, config)
         self.map = self.createMap()
         self.instances = []    # Tracks all instances tiles on the board.
 
     # Internal Data +---------------------------------------------------
-    def setAttributes(self, a:dict):
+    def setAttributes(self, a:dict, c:dict):
         """ Sets all the attributes, manual for type safety. """
-        self.tile_unit = a["tile_unit"]
+        self.tile_unit = a["tile_unit"] # Visual, thinking of making this scale when the window resizes
         self.bounds = a["dimensions"]
-        self.color = a["board_palette"]
+        self.color = a["board_palette"] # Visual
         super().__init__(tuple(x*self.tile_unit for x in self.bounds))
         
     def getAttributes(self):
@@ -378,7 +378,7 @@ class SnakeGame:
         self.action_map = {
             "quit": pygame.quit,
             "pause": self.pauseGame,
-            "restart": self.restartGame  
+            "restart": lambda: self.initializeBoard(self.r.board, self.r.game_status)  
         }
 
         # Contains the tick functions for each state
@@ -390,6 +390,7 @@ class SnakeGame:
         }
 
         # Immediately boots up the game
+        self.initializeBoard()
         self.initializeGame()
 
 # Some specific use case functions 
@@ -402,21 +403,20 @@ class SnakeGame:
         """ This just flattens the action maps for the key handler. """
         return self.action_map | self.r.action_map
 
+# Single-use functions +---------------------------------------------------
     # This a toggle, currently do not know how to do this properly
     def pauseGame(self):
         self.r.game_status["state"] = "paused" if self.r.game_status["state"] == "running" else "running"
         self.hud.pause_sequence()
 
-    def restartGame(self):
-        """ Restarts the entire program. """
-        self.__init__()
-
 # Game initialization +---------------------------------------------------
     def initializeBoard(self, board_properties=data.getBoardDefault(), status=data.getGameDefault()):
+        """ Loads up game objects. Also used for looping. """
         self.board = GameBoard(board_properties)
         self.r = BoardRules(self.board, status)
 
     def initializeGame(self):
+        """ Loads up UI. """
         self.key_handler = KeyHandler(self.getActionMap())
         self.hud = GameHUD(self.r.game_status, self.config, self.key_handler, self.window.get_size())
         self.config["center_window"] = self.centerBoard()

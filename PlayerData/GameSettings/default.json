@@ -1,8 +1,7 @@
 {
             "board":{
-                "board_dimensions": [15, 15],
-                "board_unit": 30,
-                "board_palette": [[40, 40, 40], [50, 50, 50]]
+                "tile_scale":1,
+                "board_dimensions": [15, 15]
             },
             "settings":{
                 "state": "running",
