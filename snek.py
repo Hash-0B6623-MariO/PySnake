@@ -29,10 +29,11 @@ import random
 class Tile:
     # Each id corresponds to a unique tile type, the rest of the code refers to types as ids
     # Currently not really needed, but could be useful for building more complex tiles later
-    tile_lut = {
+    lut = {
         0: "empty", 
         1: "tail",
         2: "fruit",
+        8: "portal",
         9: "head"
     }
 
@@ -83,6 +84,13 @@ class Tile:
         if isinstance(other, Tile):
             return self.personality == other.personality
         return False
+    
+# Spawners +---------------------------------------------------
+    @classmethod
+    def spawnRand(cls, bounds, personality:int):
+        if not bounds: return None
+        pos = random.choice(bounds)
+        return cls.lut[personality](pos)
 
 class Collectibles():
     # Thinking about developing (or borrowing) an algorithm for making fruit spawns have an in-game factor that determines how "easy" a fruit spawn should be
@@ -93,12 +101,9 @@ class Collectibles():
             self.quality = quality
             super().__init__(position=position, personality=2, color=(255, 0, 0), file_dir=file_dir)
     
-    # Do change this, maybe instead pass the entire map
-    @classmethod
-    def fruit_rand(cls, bounds):
-        if not bounds: return None
-        pos = random.choice(bounds)
-        return cls.Fruit(pos)
+    class Portal(Tile):
+        def __init__(self, position=(0, 0), color=(255, 0, 255), file_dir=None):
+            super().__init__(personality=8, position=position, color=color, file_dir=file_dir)
             
 # Proto class for building tiles
 class Entity:
@@ -142,17 +147,19 @@ class Entity:
         
 
 class GameBoard(pygame.Surface):
-    def __init__(self, attributes:dict, config:dict):
-        self.setAttributes(attributes, config)
+    config = data.get_config()["board"] # Access point for board config
+    def __init__(self, attributes:dict):
+        self.setAttributes(attributes)
         self.map = self.createMap()
         self.instances = []    # Tracks all instances tiles on the board.
 
     # Internal Data +---------------------------------------------------
-    def setAttributes(self, a:dict, c:dict):
+    def setAttributes(self, a:dict):
         """ Sets all the attributes, manual for type safety. """
-        self.tile_unit = a["tile_unit"] # Visual, thinking of making this scale when the window resizes
+        c = GameBoard.config
+        self.tile_unit = c["tile_unit"] * a["tile_scale"] # Visual, thinking of making this scale when the window resizes (tile scale here for a perk)
         self.bounds = a["dimensions"]
-        self.color = a["board_palette"] # Visual
+        self.color = c["palette"] # Visual
         super().__init__(tuple(x*self.tile_unit for x in self.bounds))
         
     def getAttributes(self):
@@ -245,8 +252,8 @@ class BoardRules():
         Central hub for all the game logic and state
         Includes rules, win conditions, collisions and controls
     '''
-    def __init__(self, board: GameBoard, status:dict):
-        self.board = board
+    def __init__(self, board_properties: dict, status:dict):
+        self.board = GameBoard(board_properties)
         self.character = self.findCharacter()
         self.game_status = status
         self.game_status["tick_speed"] = self.getTickSpeed()
@@ -295,7 +302,7 @@ class BoardRules():
     def spawn_fruit(self):
         available = self.board.getAvailable()
         if available:
-            self.board.addTile(Collectibles.fruit_rand(available))
+            self.board.addTile(Collectibles.spawnRand(available, 2))
 
 # Collision Logic +---------------------------------------------------
     def game_over(self, tile=None):
@@ -320,6 +327,8 @@ class BoardRules():
         self.board.clearTile(tile)
         self.spawn_fruit()
     
+    def loop(self, tile=None):
+
 
 # Dynamic Data  +---------------------------------------------------
     def getTickSpeed(self):
@@ -412,8 +421,7 @@ class SnakeGame:
 # Game initialization +---------------------------------------------------
     def initializeBoard(self, board_properties=data.getBoardDefault(), status=data.getGameDefault()):
         """ Loads up game objects. Also used for looping. """
-        self.board = GameBoard(board_properties)
-        self.r = BoardRules(self.board, status)
+        self.r = BoardRules(board_properties, status)
 
     def initializeGame(self):
         """ Loads up UI. """
@@ -437,12 +445,12 @@ class SnakeGame:
 
     def loss(self, dt):
         """ State: Game over, only accepts menu inputs. """
-        self.restartGame()
+        pass
 
 # Render/Runtime Loop +---------------------------------------------------
     def render(self):
         self.window.fill(self.config["window_background"])
-        self.board.drawBoard(self.window, self.config["center_window"])
+        self.r.board.drawBoard(self.window, self.config["center_window"])
         self.hud.draw(self.window)
         pygame.display.flip()
 

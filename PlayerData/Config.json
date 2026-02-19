@@ -1,6 +1,6 @@
 {
     "board":{
-        "board_palette":[[40, 40, 40], [50, 50, 50]],
+        "palette":[[40, 40, 40], [50, 50, 50]],
         "tile_unit":20
     },
     "window_background": [
