@@ -1,4 +1,13 @@
 import json
+class AS:
+        
+        class AG:
+                def __init__(self):
+                        pass
+        ARSE = AG
+
+        
+
 
 x, y = 3,3
 

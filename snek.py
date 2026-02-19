@@ -27,16 +27,6 @@ import random
 #   - Entity: Proto class for building more complex tiles, currently just the snake segments.
 
 class Tile:
-    # Each id corresponds to a unique tile type, the rest of the code refers to types as ids
-    # Currently not really needed, but could be useful for building more complex tiles later
-    lut = {
-        0: "empty", 
-        1: "tail",
-        2: "fruit",
-        8: "portal",
-        9: "head"
-    }
-
     def __init__(self, personality:int, position=(0,0), color=(255, 0, 0), file_dir=None):
         self.personality = personality
         self.sprite = self.replace_sprite(file_dir) if file_dir else None
@@ -85,14 +75,7 @@ class Tile:
             return self.personality == other.personality
         return False
     
-# Spawners +---------------------------------------------------
-    @classmethod
-    def spawnRand(cls, bounds, personality:int):
-        if not bounds: return None
-        pos = random.choice(bounds)
-        return cls.lut[personality](pos)
-
-class Collectibles():
+class Collectibles(Tile):
     # Thinking about developing (or borrowing) an algorithm for making fruit spawns have an in-game factor that determines how "easy" a fruit spawn should be
     class Fruit(Tile):
         def __init__(self, position=(0, 0), quality=1, tier=1, value=1, file_dir=None):
@@ -105,7 +88,6 @@ class Collectibles():
         def __init__(self, position=(0, 0), color=(255, 0, 255), file_dir=None):
             super().__init__(personality=8, position=position, color=color, file_dir=file_dir)
             
-# Proto class for building tiles
 class Entity:
     class Char(Tile):
         def __init__(self, position=(0, 0), direction=(1, 0), personality=9, color=(0, 255, 0)):
@@ -144,10 +126,22 @@ class Entity:
             super().draw(surface, scale)
             if self.back:
                 self.back.draw(surface, scale)
+
+class Spawner:
+    """ This has functions to randomly spawn tiles on the board. """
         
 
 class GameBoard(pygame.Surface):
+    # Just for reference, this is the id for each tile
+    lut = {
+        0: "empty", 
+        1: "tail",
+        2: "fruit",
+        8: "portal",
+        9: "head"
+    }   
     config = data.get_config()["board"] # Access point for board config
+
     def __init__(self, attributes:dict):
         self.setAttributes(attributes)
         self.map = self.createMap()
@@ -229,6 +223,12 @@ class GameBoard(pygame.Surface):
                     self.map[ty][tx] = curr
                 curr = getattr(curr, 'back', None)
 
+    # Spawners +---------------------------------------------------
+    def spawnRand(self, tile:Tile):
+        """ Global spawner. """
+        tile.position = random.choice(self.getAvailable())
+        self.addTile(tile)
+
     # Drawing  +---------------------------------------------------
     def drawBg(self, palette):
         """ Draws the background tiles checkered. """
@@ -302,7 +302,7 @@ class BoardRules():
     def spawn_fruit(self):
         available = self.board.getAvailable()
         if available:
-            self.board.addTile(Collectibles.spawnRand(available, 2))
+            self.board.spawnRand(Collectibles.Fruit())
 
 # Collision Logic +---------------------------------------------------
     def game_over(self, tile=None):
