@@ -91,7 +91,7 @@ class Collectibles(Tile):
 class Entity:
     class Char(Tile):
         def __init__(self, position=(0, 0), direction=(1, 0), personality=9, color=(0, 255, 0)):
-            super().__init__(position, personality, color=color)
+            super().__init__(position=position, personality=personality, color=color)   # Many pains caused by dealing with order sensitivity
             self.back = None 
             self.direction = direction 
             self.last_moved_direction = direction
@@ -108,7 +108,7 @@ class Entity:
         def move(self, new_position=None):
             old_self_pos = self.position
             if new_position is None:
-                new_position = self.get_front()
+                new_position = self.getFront()
 
             if self.back:
                 self.back.move(old_self_pos)
@@ -116,7 +116,8 @@ class Entity:
             self.last_moved_direction = self.direction
             super().move(new_position)
 
-        def get_front(self):
+        def getFront(self):
+            """ Gets the front of hte current segement. """
             return (self.position[0] + self.direction[0], self.position[1] + self.direction[1])
 
         def getTail(self):
@@ -131,10 +132,6 @@ class Entity:
             if self.back:
                 self.back.draw(surface, scale)
 
-class Spawner:
-    """ This has functions to randomly spawn tiles on the board. """
-        
-
 class GameBoard(pygame.Surface):
     # Just for reference, this is the id for each tile
     lut = {
@@ -144,7 +141,7 @@ class GameBoard(pygame.Surface):
         8: "portal",
         9: "head"
     }   
-    config = data.get_config()["board"] # Access point for board config
+    config = data.getConfig()["board"] # Access point for board config
 
     def __init__(self, attributes:dict):
         self.setAttributes(attributes)
@@ -252,24 +249,23 @@ class GameBoard(pygame.Surface):
 
 
 class BoardRules():
-    ''' 
+    """
         Central hub for all the game logic and state
         Includes rules, win conditions, collisions and controls
-    '''
+        Note: game_status["state"] is used for one-way communication to the SnakeGame class
+    """
     def __init__(self, board_properties: dict, status:dict):
-        self.board = GameBoard(board_properties)
-        self.character = self.findCharacter()
+        self.startBoard(board_properties)
         self.game_status = status
-        self.game_status["tick_speed"] = self.getTickSpeed()
+        self.game_status["tick_speed"] = self.getTickSpeed
         self.clock = 0      # Helper variable for calculating delta time
 
         self.on_collide = {
             0: self.is_empty,
-            1: self.collideTail(), 
+            1: self.collideTail, 
             2: self.collide_fruit,
             -1: self.game_over
         }
-
 
         self.action_map = {
             # Movement: Done with the assumption that you can only move one tile at a time
@@ -283,10 +279,13 @@ class BoardRules():
 
 # Onetime Events +---------------------------------------------------
     # Can be expanded for creating dynamic map progresion every loop
-    def startBoard(self):
+    def startBoard(self, board_properties:dict):
+        """ Loads board with passed properties. """
+        self.board = GameBoard(board_properties)
         self.character = Entity.Char(position=self.board.centerBoard())
         self.board.addTile(self.character)
         self.spawn_fruit()
+
 
 # Character Logic/Functions +---------------------------------------------------
     def changeDirection(self, new_dir):
@@ -298,9 +297,6 @@ class BoardRules():
         opposite = (new_dir[0] * -1, new_dir[1] * -1)
         return opposite == self.character.last_moved_direction
 
-    def findCharacter(self) -> Entity.Char:
-        return self.board.searchBoard(9)[0]
-
 # Board Data (or anything related to sending/requesting data to/from the board directly.)
 # Tried to avoid direct interaction with the board inside of this class, but this works
     def spawn_fruit(self):
@@ -309,11 +305,6 @@ class BoardRules():
             self.board.spawnRand(Collectibles.Fruit())
 
 # Collision Logic +---------------------------------------------------
-    def game_over(self, tile=None):
-        """ Tile: 9 or -1 (boundary). """
-        print(f"Game Over! Final Score: {self.game_status["score"]}")
-        self.game_status["state"] = "loss"
-
     def is_empty(self, tile=None):
         ''' Tile: 0. Basic tile function. '''
         self.character.move()
@@ -331,14 +322,20 @@ class BoardRules():
         self.board.clearTile(tile)
         self.spawn_fruit()
     
-    def collideTail(self, tile=None):
+    def collideTail(self, tile:Entity.Char):
         """ Runs the loop logic mainly, but handle game over transition on body collision. """
         if tile.back != None:
-            # Restarts the boar, can be encapsulate to another function in the case that other events trigger a loop
+            # Restarts the board, can be encapsulate to another function in the case that other events trigger a loop
             board_properties = self.board.getAttributes()
-            self.game_status["quota"] = self.game_status[""]
+            self.startBoard(board_properties)
         else:
             self.game_over()
+
+    def game_over(self, tile=None):
+        """ Tile: 9 or -1 (boundary). """
+        print(f"Game Over! Final Score: {self.game_status["score"]}")
+        self.game_status["state"] = "loss"
+        
 
 
 
@@ -368,7 +365,7 @@ class BoardRules():
 
 # Game Checks/Tick Loop +---------------------------------------------------
     def checkCollisions(self):
-        target_pos = self.character.get_front()
+        target_pos = self.character.getFront()
         front_tile = self.board.getTile(target_pos) 
         # Check if it's a Tile object or an integer (0 or -1)
         lookup = front_tile.personality if hasattr(front_tile, 'personality') else front_tile
@@ -382,13 +379,16 @@ class BoardRules():
 
 # Central class ==============================================================================================================   
 class SnakeGame:
-    """ Central class for the game, handles rendering, input and state management. Calls BoardRules for game logic and data. """
+    """ 
+        Central class for the game, handles rendering, input and state management. 
+        Calls BoardRules for game logic and data. 
+    """
     def __init__(self):
         pygame.init()
         # Window and program setup
 
         # Data loading
-        self.config = data.get_config()
+        self.config = data.getConfig()
 
         # Window setup
         self.window = pygame.display.set_mode(self.config["window_size"])
@@ -399,7 +399,7 @@ class SnakeGame:
         self.action_map = {
             "quit": pygame.quit,
             "pause": self.pauseGame,
-            "restart": lambda: self.initializeBoard(self.r.board, self.r.game_status)  
+            "restart": self.initializeGame  
         }
 
         # Contains the tick functions for each state
@@ -411,14 +411,13 @@ class SnakeGame:
         }
 
         # Immediately boots up the game
-        self.initializeBoard()
         self.initializeGame()
 
 # Some specific use case functions 
     def centerBoard(self):
-        " This is used for centering the board on the window. "
-        return ((self.window.get_width() - self.board.get_width()) // 2, 
-                (self.window.get_height() - self.board.get_height()) // 2)
+        """ This is used for centering the board on the window. """
+        return ((self.window.get_width() - self.r.board.get_width()) // 2, 
+                (self.window.get_height() - self.r.board.get_height()) // 2)
 
     def getActionMap(self):
         """ This just flattens the action maps for the key handler. """
@@ -430,16 +429,18 @@ class SnakeGame:
         self.r.game_status["state"] = "paused" if self.r.game_status["state"] == "running" else "running"
         self.hud.pause_sequence()
 
-# Game initialization +---------------------------------------------------
-    def initializeBoard(self, board_properties=data.getBoardDefault(), status=data.getGameDefault()):
-        """ Loads up game objects. Also used for looping. """
-        self.r = BoardRules(board_properties, status)
+# Game initialization +--------------------------------------------------- 
+    def initializeGame(self, board_properties=None, status=None):
+        """ Boots up game objects then UI. """
+        if not board_properties and not status:
+            board_properties = data.getBoardDefault()
+            status = data.getGameDefault()
+        self.r = BoardRules(board_properties, status)   # No clue how to deal with this but there should be no errors
 
-    def initializeGame(self):
-        """ Loads up UI. """
         self.key_handler = KeyHandler(self.getActionMap())
         self.hud = GameHUD(self.r.game_status, self.config, self.key_handler, self.window.get_size())
         self.config["center_window"] = self.centerBoard()
+
 
 # Game states +---------------------------------------------------
     def paused(self, dt):
@@ -447,8 +448,7 @@ class SnakeGame:
         pass
 
     def running(self, dt):
-        """ State: Gameloop is running """
-        # Everything here is bound to the game's tick rate
+        """ State: Everything here is bound to the game's tick rate. """
         self.r.clock += dt
         while self.r.clock >= self.r.game_status["tick_speed"]():
             self.key_handler.evaluate_queue()  # Process buffered inputs
@@ -457,7 +457,7 @@ class SnakeGame:
 
     def loss(self, dt):
         """ State: Game over, only accepts menu inputs. """
-        pass
+        self.initializeGame()
 
 # Render/Runtime Loop +---------------------------------------------------
     def render(self):
@@ -469,8 +469,6 @@ class SnakeGame:
     def check_input(self):
         """ The GameHUD handles all the inputs, this is here for better distinction of the process. """
         for event in pygame.event.get():
-
-            print(event)
             if event.type == pygame.KEYDOWN:
                 self.key_handler.handle_keydown(event.key)
             self.hud.handle_events(event)
