@@ -13,7 +13,7 @@ class FileHandler:
     path_settings:str = "PlayerData/GameSettings"    # Mapping
 
     @classmethod
-    def read_json(cls, path):
+    def readJson(cls, path):
         try:
             with open(path, 'r') as f:
                 data = json.load(f)
@@ -23,7 +23,7 @@ class FileHandler:
             return {}
     
     @classmethod
-    def write_json(cls, data, path):
+    def writeJson(cls, data, path):
         try:
             with open(path, 'w') as f:
                 json.dump(data, f, indent=4)
@@ -31,23 +31,23 @@ class FileHandler:
             print(f"Error writing config file: {e}")
 
     @classmethod
-    def load_keybinds(cls):
+    def loadKeybinds(cls):
         """ Loads keybinds from config. """
-        return cls.get_config()["keybinds"]
+        return cls.getConfig()["keybinds"]
 
     @classmethod
-    def get_config(cls):
-        return cls.read_json(cls.path_config)
+    def getConfig(cls):
+        return cls.readJson(cls.path_config)
     
     @classmethod
     def getBoardDefault(cls, settings="/default"):
         path = cls.path_settings + settings + ".json"
-        return cls.read_json(path)["board"]
+        return cls.readJson(path)["board"]
 
     @classmethod
     def getGameDefault(cls, settings="/default"):
         path = cls.path_settings + settings + ".json"
-        return cls.read_json(path)["settings"]
+        return cls.readJson(path)["settings"]
 
 
 
@@ -58,7 +58,7 @@ class FileHandler:
 class KeyHandler:
     ''' Handles game runtime inputs '''
     def __init__(self, action_map: dict):
-        self.setKeyMapping(FileHandler.load_keybinds(), action_map)   # Maps tags to key-action mappings
+        self.setKeyMapping(FileHandler.loadKeybinds(), action_map)   # Maps tags to key-action mappings
         self._action_mapping = action_map     # References the functions to string counterparts
         self.action_queue = {tag: [] for tag in self._key_mapping["game"].keys()}  # Action queue for game inputs
 

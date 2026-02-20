@@ -1,7 +1,7 @@
 {
     "board":{
         "palette":[[40, 40, 40], [50, 50, 50]],
-        "tile_unit":20
+        "tile_unit":25
     },
     "window_background": [
         10,
