@@ -119,6 +119,10 @@ class Entity:
         def get_front(self):
             return (self.position[0] + self.direction[0], self.position[1] + self.direction[1])
 
+        def getTail(self):
+            """ Convenient way to get the tail, is O(n) but game too small to affect much. """
+            return self if self.back == None else self.getTail()
+
         def changeDirection(self, direction):
             self.direction = direction
 
@@ -261,7 +265,7 @@ class BoardRules():
 
         self.on_collide = {
             0: self.is_empty,
-            1: self.game_over, 
+            1: self.collideTail(), 
             2: self.collide_fruit,
             -1: self.game_over
         }
@@ -327,7 +331,15 @@ class BoardRules():
         self.board.clearTile(tile)
         self.spawn_fruit()
     
-    def loop(self, tile=None):
+    def collideTail(self, tile=None):
+        """ Runs the loop logic mainly, but handle game over transition on body collision. """
+        if tile.back != None:
+            # Restarts the boar, can be encapsulate to another function in the case that other events trigger a loop
+            board_properties = self.board.getAttributes()
+            self.game_status["quota"] = self.game_status[""]
+        else:
+            self.game_over()
+
 
 
 # Dynamic Data  +---------------------------------------------------
