@@ -92,11 +92,16 @@ class Entity:
     class Char(Tile):
         def __init__(self, position=(0, 0), direction=(1, 0), personality=9, color=(0, 255, 0)):
             super().__init__(position=position, personality=personality, color=color)   # Many pains caused by dealing with order sensitivity
-            self.back = None 
-            self.direction = direction 
-            self.last_moved_direction = direction
+            # Doubly linked list, where each each segment knows the tail and head tile
+            self.back = None
+            self.front = None
+            self.tail = self    
+            self.head = self
+            self.growing = False
 
-        def grow_into(self, target_pos):
+            self.direction = direction 
+
+        def grow(self, target_pos):
             # Create body segment at old head pos
             new_segment = Entity.Char(position=self.position, personality=1, color=(0, 200, 0))
             new_segment.back = self.back
@@ -115,14 +120,6 @@ class Entity:
 
             self.last_moved_direction = self.direction
             super().move(new_position)
-
-        def getFront(self):
-            """ Gets the front of hte current segement. """
-            return (self.position[0] + self.direction[0], self.position[1] + self.direction[1])
-
-        def getTail(self):
-            """ Convenient way to get the tail, is O(n) but game too small to affect much. """
-            return self if self.back == None else self.getTail()
 
         def changeDirection(self, direction):
             self.direction = direction
@@ -173,7 +170,6 @@ class GameBoard(pygame.Surface):
         return [(x, y) for x in range(w) for y in range(h) if (x, y) not in occupied]
 
     def getOccupied(self):
-        # We need to flatten the linked snake body to get all occupied coordinates
         occupied = []
         for tile in self.instances:
             curr = tile
@@ -295,7 +291,7 @@ class BoardRules():
     def isIllegalTurn(self, new_dir):
         """ Prevents 180s. """
         opposite = (new_dir[0] * -1, new_dir[1] * -1)
-        return opposite == self.character.last_moved_direction
+        return opposite == self.character.direction
 
 # Board Data (or anything related to sending/requesting data to/from the board directly.)
 # Tried to avoid direct interaction with the board inside of this class, but this works
@@ -312,7 +308,7 @@ class BoardRules():
 
     def collide_fruit(self, tile: Collectibles.Fruit):
         """ Tile: 2. """
-        self.character.grow_into(tile.position)
+        self.character.grow(tile.position)
         self.game_status["score"] += (tile.tier * 10)
         self.game_status["multiplier"] += (tile.quality * 10)
 
@@ -342,8 +338,7 @@ class BoardRules():
 # Dynamic Data  +---------------------------------------------------
     def getTickSpeed(self):
         """ Returns the current tick speed, calculated from the base and the clear percentage. """
-        # Old tick logic
-        # (1000/self.game_status["tick_rate"])*(self.game_status["tick_base"] + self.board.getClearPercentage())
+        # Orig. version - (1000/self.game_status["tick_rate"])*(self.game_status["tick_base"] + self.board.getClearPercentage())
         return (1000/self.game_status["tick_rate"])*(1 + self.board.getClearPercentage() ** 10)
 
     def multDecay(self, n=.2):
@@ -365,7 +360,7 @@ class BoardRules():
 
 # Game Checks/Tick Loop +---------------------------------------------------
     def checkCollisions(self):
-        target_pos = self.character.getFront()
+        target_pos = (self.character.position[0] + self.character.direction[0], self.character.position[1] + self.character.direction[1])
         front_tile = self.board.getTile(target_pos) 
         # Check if it's a Tile object or an integer (0 or -1)
         lookup = front_tile.personality if hasattr(front_tile, 'personality') else front_tile
