@@ -27,6 +27,7 @@ import random
 #   - Entity: Proto class for building more complex tiles, currently just the snake segments.
 
 class Tile:
+    scale = 1 # Here for scaling the window
     def __init__(self, personality:int, position=(0,0), color=(255, 0, 0), file_dir=None):
         self.personality = personality
         self.sprite = self.replace_sprite(file_dir) if file_dir else None
@@ -74,7 +75,9 @@ class Tile:
         if isinstance(other, Tile):
             return self.personality == other.personality
         return False
-    
+
+
+# Nesting the classes for the sake of classification
 class Collectibles(Tile):
     # Thinking about developing (or borrowing) an algorithm for making fruit spawns have an in-game factor that determines how "easy" a fruit spawn should be
     class Fruit(Tile):
@@ -84,11 +87,60 @@ class Collectibles(Tile):
             self.quality = quality
             super().__init__(position=position, personality=2, color=(255, 0, 0), file_dir=file_dir)
     
-    class Portal(Tile):
-        def __init__(self, position=(0, 0), color=(255, 0, 255), file_dir=None):
-            super().__init__(personality=8, position=position, color=color, file_dir=file_dir)
             
 class Entity:
+    class FollowerNode(Tile):
+        def __init__(self, position, color):
+            self.back = None
+            self.front = None
+            super().__init__(personality=8, position=position, color=color)
+
+        def move(self, new_position):
+            old_pos = self.position
+            self.position = new_position
+            if self.back:
+                self.back.move(old_pos)
+
+        def draw(self, surface:pygame.Surface):
+            super().draw(surface)
+            if self.back:
+                self.back.draw(surface)
+
+    class Snake:
+        # Planning on making this not exclusive to the character
+        def __init__(self, position=(0, 0), direction=(1, 0)):
+            self.head = Entity.FollowerNode(*position)
+            self.tail = self.head
+            self.grow_count = 0
+            self.reaper = self._tail_generator()
+            self.direction = direction
+
+        def _tail_generator(self):
+            while True:
+                if self.grow_count > 0:
+                    self.grow_count -= 1
+                    yield True
+                else:
+                    yield False
+
+        def grow(self, amount=1):
+            self.grow_count += amount
+
+        def update(self):
+            new_x, new_y = self.head.position[0] + self.direction[0], self.head.position[1] + self.direction[1]
+            vacated_pos = self.tail.position
+            vacated_pos = self.head.move((new_x, new_y))
+
+            # 3. Consult the Reaper
+            if next(self.reaper):
+                # GROWTH: Add a new segment at the vacated position
+                new_segment = Entity.FollowerNode(*vacated_pos)
+                self.tail.child = new_segment
+                self.tail = new_segment
+
+        def draw(self, surface:pygame.Surface, scale=1):
+            self.head.draw(surface, scale)
+
     class Char(Tile):
         def __init__(self, position=(0, 0), direction=(1, 0), personality=9, color=(0, 255, 0)):
             super().__init__(position=position, personality=personality, color=color)   # Many pains caused by dealing with order sensitivity
