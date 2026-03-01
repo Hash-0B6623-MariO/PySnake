@@ -56,7 +56,9 @@ class Tile:
 
     # Tile Data Functions ==============================================================================================================
     def move(self, new_position:tuple):
+        old_pos = self.position
         self.position = new_position
+        return old_pos
 
     # Standard way of calling
     def __hash__(self):
@@ -75,25 +77,19 @@ class Tile:
         if isinstance(other, Tile):
             return self.personality == other.personality
         return False
-
-
-# Nesting the classes for the sake of classification
-class Collectibles(Tile):
-    # Thinking about developing (or borrowing) an algorithm for making fruit spawns have an in-game factor that determines how "easy" a fruit spawn should be
-    class Fruit(Tile):
-        def __init__(self, position=(0, 0), quality=1, tier=1, value=1, file_dir=None):
-            self.tier = tier
-            self.value = value
-            self.quality = quality
-            super().__init__(position=position, personality=2, color=(255, 0, 0), file_dir=file_dir)
-    
             
-class Entity:
+class Entity(Tile):
+    """ Base class for entity components """
+    def __init__(self, controller, **kwargs):
+        self.controller = controller    # Unified means for movement logic
+        super().__init__(**kwargs)
+
     class FollowerNode(Tile):
-        def __init__(self, position, color):
+        def __init__(self, parent, **kwargs):
             self.back = None
             self.front = None
-            super().__init__(personality=8, position=position, color=color)
+            self.parent = parent
+            super().__init__(**kwargs)
 
         def move(self, new_position):
             old_pos = self.position
@@ -101,85 +97,90 @@ class Entity:
             if self.back:
                 self.back.move(old_pos)
 
-        def draw(self, surface:pygame.Surface):
+        def draw(self, surface:pygame.Surface, scale=1):
             super().draw(surface)
             if self.back:
                 self.back.draw(surface)
 
-    class Snake:
-        # Planning on making this not exclusive to the character
-        def __init__(self, position=(0, 0), direction=(1, 0)):
-            self.head = Entity.FollowerNode(*position)
-            self.tail = self.head
-            self.grow_count = 0
-            self.reaper = self._tail_generator()
-            self.direction = direction
+# Nesting the classes for the sake of classification
+class Collectibles(Tile):
+    """ Base class for interactive components, collectibles rn since thats the only current function  """
+    # Thinking about developing (or borrowing) an algorithm for making fruit spawns have an in-game factor that determines how "easy" a fruit spawn should be
+    class Fruit(Tile):
+        def __init__(self, quality=1, tier=1, value=1, **kwargs):
+            self.tier = tier
+            self.value = value
+            self.quality = quality
+            super().__init__(**kwargs)
 
-        def _tail_generator(self):
-            while True:
-                if self.grow_count > 0:
-                    self.grow_count -= 1
-                    yield True
-                else:
-                    yield False
+# Entity Instances
+class Snake(Entity):
+    _attributes = {
+        "color": (0, 200, 0),
+        "personality": 9
+    }
 
-        def grow(self, amount=1):
-            self.grow_count += amount
+    @classmethod
+    def _node_factory_gen(cls):
+        """Generator that accepts parent and position context for each new node."""
+        context = yield None 
+        while True:
+            parent, pos = context
+            node = Entity.FollowerNode(parent=parent, position=pos, personality=cls._attributes["personality"], color=cls._attributes["color"])
+            context = yield node
 
-        def update(self):
-            new_x, new_y = self.head.position[0] + self.direction[0], self.head.position[1] + self.direction[1]
-            vacated_pos = self.tail.position
-            vacated_pos = self.head.move((new_x, new_y))
+    def __init__(self, position=(0, 0), direction=(1, 0), controller=None):
+        super().__init__(
+            personality=self._attributes["personality"],
+            position=position,
+            color=self._attributes["color"],
+            controller=controller
+        )
+        
+        self.node_factory = self._node_factory_gen()
+        next(self.node_factory) # Prime the generator
+        
+        self.direction = direction
+        self.last_moved_direction = direction
+        
+        # Initialize Persistent Tail with parent (self) and position
+        self.tail = self.node_factory.send((self, position))
+        self.back = self.tail 
 
-            # 3. Consult the Reaper
-            if next(self.reaper):
-                # GROWTH: Add a new segment at the vacated position
-                new_segment = Entity.FollowerNode(*vacated_pos)
-                self.tail.child = new_segment
-                self.tail = new_segment
+    def grow(self):
+        """ Insertion: Wedges a node between head and the previous back. """
+        # Use the head as the parent and its current position as the start
+        new_segment = self.node_factory.send((self, self.position))
+        
+        old_back = self.back 
+        
+        # Re-link Head -> New Segment
+        self.back = new_segment
+        # (New segment's .front is already set to 'self' by the factory)
+        
+        # Re-link New Segment -> Old Back (the previous body or tail)
+        new_segment.back = old_back
+        if old_back:
+            old_back.front = new_segment
 
-        def draw(self, surface:pygame.Surface, scale=1):
-            self.head.draw(surface, scale)
+    def move(self, new_position=None):
+        old_self_pos = self.position
+        if new_position is None:
+            new_position = (self.position[0] + self.direction[0], 
+                            self.position[1] + self.direction[1])
 
-    class Char(Tile):
-        def __init__(self, position=(0, 0), direction=(1, 0), personality=9, color=(0, 255, 0)):
-            super().__init__(position=position, personality=personality, color=color)   # Many pains caused by dealing with order sensitivity
-            # Doubly linked list, where each each segment knows the tail and head tile
-            self.back = None
-            self.front = None
-            self.tail = self    
-            self.head = self
-            self.growing = False
+        if self.back:
+            self.back.move(old_self_pos)
 
-            self.direction = direction 
+        self.last_moved_direction = self.direction
+        super().move(new_position)
 
-        def grow(self, target_pos):
-            # Create body segment at old head pos
-            new_segment = Entity.Char(position=self.position, personality=1, color=(0, 200, 0))
-            new_segment.back = self.back
-            self.back = new_segment
-            # Jump head to fruit pos
-            self.position = target_pos
-            self.last_moved_direction = self.direction
+    def draw(self, surface, scale):
+        super().draw(surface, scale)
+        if self.back:
+            self.back.draw(surface, scale)
 
-        def move(self, new_position=None):
-            old_self_pos = self.position
-            if new_position is None:
-                new_position = self.getFront()
 
-            if self.back:
-                self.back.move(old_self_pos)
-
-            self.last_moved_direction = self.direction
-            super().move(new_position)
-
-        def changeDirection(self, direction):
-            self.direction = direction
-
-        def draw(self, surface:pygame.Surface, scale=1):
-            super().draw(surface, scale)
-            if self.back:
-                self.back.draw(surface, scale)
 
 class GameBoard(pygame.Surface):
     # Just for reference, this is the id for each tile
@@ -294,6 +295,9 @@ class GameBoard(pygame.Surface):
         self.drawBg(self.color)
         self.drawTiles()
         window.blit(self, position)
+
+
+
 
 
 class BoardRules():
