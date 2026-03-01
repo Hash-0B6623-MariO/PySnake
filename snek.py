@@ -47,7 +47,8 @@ class Tile:
     def scale_to_board(self, tile_unit):
         return tuple(pos * tile_unit for pos in self.position)
 
-    def draw(self, surface:pygame.Surface, scale=1):
+    def draw(self, surface:pygame.Surface):
+        scale = Tile.scale
         if self.sprite:
             # Scaled blit for sprites
             surface.blit(pygame.transform.scale(self.sprite, (scale, scale)), self.scale_to_board(scale))
@@ -120,15 +121,6 @@ class Snake(Entity):
         "personality": 9
     }
 
-    @classmethod
-    def _node_factory_gen(cls):
-        """Generator that accepts parent and position context for each new node."""
-        context = yield None 
-        while True:
-            parent, pos = context
-            node = Entity.FollowerNode(parent=parent, position=pos, personality=cls._attributes["personality"], color=cls._attributes["color"])
-            context = yield node
-
     def __init__(self, position=(0, 0), direction=(1, 0), controller=None):
         super().__init__(
             personality=self._attributes["personality"],
@@ -136,28 +128,25 @@ class Snake(Entity):
             color=self._attributes["color"],
             controller=controller
         )
-        
-        self.node_factory = self._node_factory_gen()
-        next(self.node_factory) # Prime the generator
-        
         self.direction = direction
         self.last_moved_direction = direction
         
         # Initialize Persistent Tail with parent (self) and position
-        self.tail = self.node_factory.send((self, position))
+        self.tail = self._generate_node(position)
         self.back = self.tail 
+
+    def _generate_node(self, pos):
+        return Entity.FollowerNode(parent=self, position=pos, personality=Snake._attributes["personality"], color=Snake._attributes["color"])
+
 
     def grow(self):
         """ Insertion: Wedges a node between head and the previous back. """
         # Use the head as the parent and its current position as the start
-        new_segment = self.node_factory.send((self, self.position))
+        new_segment = self._generate_node(self.position)
         
         old_back = self.back 
-        
-        # Re-link Head -> New Segment
         self.back = new_segment
-        # (New segment's .front is already set to 'self' by the factory)
-        
+
         # Re-link New Segment -> Old Back (the previous body or tail)
         new_segment.back = old_back
         if old_back:
@@ -175,10 +164,10 @@ class Snake(Entity):
         self.last_moved_direction = self.direction
         super().move(new_position)
 
-    def draw(self, surface, scale):
-        super().draw(surface, scale)
+    def draw(self, surface):
+        super().draw(surface)
         if self.back:
-            self.back.draw(surface, scale)
+            self.back.draw(surface)
 
 
 
